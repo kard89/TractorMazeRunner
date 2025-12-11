@@ -24,6 +24,6 @@ int main(int argc, char* argv[]) {
     // Sprz¹tanie
     SDL_DestroyWindow(window);
     SDL_Quit();
-
+    //KOMENTARZ
     return 0;
 }
