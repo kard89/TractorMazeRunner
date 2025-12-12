@@ -17,10 +17,10 @@ int main(int argc, char* argv[]) {
         std::cout << "Window Error: " << SDL_GetError() << std::endl;
         return -1;
     }
-
+    //KOMENTARZ
     // Pauza ¿eby zobaczyæ okno (3 sekundy)
     SDL_Delay(3000);
-
+    
     // Sprz¹tanie
     SDL_DestroyWindow(window);
     SDL_Quit();
