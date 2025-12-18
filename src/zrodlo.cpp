@@ -41,6 +41,43 @@ public://Ustawianie pozycji startowej i predkosci
         SDL_RenderFillRect(renderer, &rect);
         
     }
+    //Funkcja umozliwaja poznanie antagnoiscie pozycje gracza
+    int getX() { return rect.x; }
+    int getY() { return rect.y; }
+    SDL_Rect getRect() { return rect; }
+};
+class Enemy {
+private:
+    SDL_Rect rect;
+    int speed;
+public://Ustawianie pozycji startowej i predkosci
+    Enemy(int x, int y, int size, int moveSpeed) {
+        rect.x = x;
+        rect.y = y;
+        rect.w = size;
+        rect.h = size;
+        speed = moveSpeed;
+    
+    }//Logika(trakowanie postaci glownej)
+    void update(int playerX, int playerY) {
+        //Obliczanie roznicy pozycji miedzy wrogiem a graczem
+        int deltaX = playerX - rect.x;
+        int deltaY = playerY - rect.y;
+        //ruch  w poziomie
+        if (abs(deltaX) > abs(deltaY)) {
+            if (deltaX > 0) rect.x += speed;
+            else if (deltaX < 0) rect.x -= speed;
+        }
+        else {
+            if (deltaY > 0) rect.y += speed;
+            else if (deltaY < 0) rect.y -= speed;
+        }
+    }
+    void draw(SDL_Renderer* renderer) {
+        SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+        SDL_RenderFillRect(renderer, &rect);
+    }
+    SDL_Rect getReck() { return rect; }
 };
 
 int main(int argc, char* argv[]) {
@@ -62,6 +99,7 @@ int main(int argc, char* argv[]) {
     }
     //Inicjalizacja obiektow
     Player player(100, 100, 50, 15);
+    Enemy enemy(600, 400, 40, 3);
     //zmienna sterujaca gra
     bool running = true;
     SDL_Event e;
@@ -72,11 +110,13 @@ int main(int argc, char* argv[]) {
             player.handleInput(e);
         }
         player.update();
+        enemy.update(player.getX(), player.getY());
 
         SDL_SetRenderDrawColor(renderer, 34, 139, 34, 255);
         SDL_RenderClear(renderer);
 
         player.draw(renderer);
+        enemy.draw(renderer);
         SDL_RenderPresent(renderer);
         SDL_Delay(16);
     }
