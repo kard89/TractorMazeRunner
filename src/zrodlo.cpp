@@ -39,6 +39,7 @@ public://Ustawianie pozycji startowej i predkosci
     void draw(SDL_Renderer* renderer) { //rysowanie gracza w oknie
         SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);//ustawienie koloru na bialy
         SDL_RenderFillRect(renderer, &rect);
+        
     }
 };
 
@@ -72,7 +73,7 @@ int main(int argc, char* argv[]) {
         }
         player.update();
 
-        SDL_SetRenderDrawColor(renderer, 20, 20, 20, 255);
+        SDL_SetRenderDrawColor(renderer, 34, 139, 34, 255);
         SDL_RenderClear(renderer);
 
         player.draw(renderer);
