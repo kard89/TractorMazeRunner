@@ -1,8 +1,31 @@
 #include <SDL.h>
 #include <iostream>
+#include <vector>
+#include <queue>
+#include <cmath>
+#include <algorithm>
+#include <map>
 const int SCREEN_WIDTH = 800; //Szerokosc okna
 const int SCREEN_HEIGHT = 600; //Wysokosc okna
 //Klasa Gracza
+const int TILE_SIZE = 50;
+const int MAP_ROWS = 12;
+const int MAP_COLS = 16;
+
+int maze[MAP_ROWS][MAP_COLS] = {
+    {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}, // 1. Góra (same œciany)
+    {1,0,0,0,1,0,0,0,0,0,0,0,1,0,0,1}, // 2. Przejœcie
+    {1,0,1,0,1,0,1,1,1,1,1,0,1,0,1,1}, // 3.
+    {1,0,1,0,0,0,0,0,0,0,1,0,0,0,0,1}, // 4.
+    {1,0,1,1,1,1,1,1,0,1,1,1,1,1,0,1}, // 5.
+    {1,0,0,0,0,0,0,1,0,0,0,0,0,1,0,1}, // 6. Œrodek
+    {1,1,1,1,1,1,0,1,1,1,1,1,0,1,0,1}, // 7.
+    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1}, // 8.
+    {1,0,1,1,1,1,1,1,1,1,1,1,1,1,0,1}, // 9.
+    {1,0,1,0,0,0,0,0,0,0,0,0,0,1,0,1}, // 10.
+    {1,0,0,0,1,1,1,1,0,1,1,1,0,0,0,1}, // 11.
+    {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}  // 12. Dó³ (same œciany)
+};
 class Player {
 private:
     SDL_Rect rect; //struktura do przechowywania polozenia
@@ -18,6 +41,8 @@ public://Ustawianie pozycji startowej i predkosci
 
     void handleInput(SDL_Event& e) {
         if (e.type == SDL_KEYDOWN) {
+            int oldX = rect.x;
+            int oldY = rect.y;
             switch (e.key.keysym.sym) {
             case SDLK_UP: rect.y -= speed;
                 break;
@@ -28,7 +53,22 @@ public://Ustawianie pozycji startowej i predkosci
             case SDLK_RIGHT: rect.x += speed;
                 break;
             }
+            for (int r = 0; r < MAP_ROWS; r++) {
+                for (int c = 0; c < MAP_COLS; c++) {
+                    if (maze[r][c] == 1) { // Jeœli to pole jest œcian¹
+                        SDL_Rect wall = { c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, TILE_SIZE };
+
+                        // Funkcja SDL_HasIntersection sprawdza, czy dwa kwadraty na siebie nachodz¹
+                        if (SDL_HasIntersection(&rect, &wall)) {
+                            // Jeœli nast¹pi³a kolizja, cofnij gracza do starej pozycji
+                            rect.x = oldX;
+                            rect.y = oldY;
+                        }
+                    }
+                }
+            }
         }
+        
     }
     void update() { //Punkt kontrolny czy nasz ,,traktor" nie wyjezdza poza wymiar ekranu
         if (rect.x < 0) rect.x = 0;
@@ -46,38 +86,96 @@ public://Ustawianie pozycji startowej i predkosci
     int getY() { return rect.y; }
     SDL_Rect getRect() { return rect; }
 };
+struct Node {
+    int x, y;
+    int g, h;
+    Node* parent;
+    int f() const { return g + h; }
+};
+
 class Enemy {
 private:
     SDL_Rect rect;
     int speed;
-public://Ustawianie pozycji startowej i predkosci
-    Enemy(int x, int y, int size, int moveSpeed) {
-        rect.x = x;
-        rect.y = y;
-        rect.w = size;
-        rect.h = size;
-        speed = moveSpeed;
-    
-    }//Logika(trakowanie postaci glownej)
-    void update(int playerX, int playerY) {
-        //Obliczanie roznicy pozycji miedzy wrogiem a graczem
-        int deltaX = playerX - rect.x;
-        int deltaY = playerY - rect.y;
-        //ruch  w poziomie
-        if (abs(deltaX) > abs(deltaY)) {
-            if (deltaX > 0) rect.x += speed;
-            else if (deltaX < 0) rect.x -= speed;
+    std::vector<SDL_Point> path; // Przechowuje listê punktów do przejœcia
+
+    // Funkcja obliczaj¹ca drogê (Uproszczony A*)
+    void findPath(int startX, int startY, int targetX, int targetY) {
+        path.clear();
+        int sCol = startX / TILE_SIZE;
+        int sRow = startY / TILE_SIZE;
+        int tCol = targetX / TILE_SIZE;
+        int tRow = targetY / TILE_SIZE;
+
+        if (sCol == tCol && sRow == tRow) return;
+
+        // Prosty algorytm zalewowy (BFS), który wyznaczy trasê w labiryncie
+        std::queue<SDL_Point> q;
+        q.push({ sCol, sRow });
+
+        std::map<int, SDL_Point> parentMap;
+        bool visited[MAP_ROWS][MAP_COLS] = { false };
+        visited[sRow][sCol] = true;
+
+        bool found = false;
+        while (!q.empty()) {
+            SDL_Point curr = q.front(); q.pop();
+            if (curr.x == tCol && curr.y == tRow) { found = true; break; }
+
+            int dx[] = { 0, 0, 1, -1 };
+            int dy[] = { 1, -1, 0, 0 };
+            for (int i = 0; i < 4; i++) {
+                int nx = curr.x + dx[i], ny = curr.y + dy[i];
+                if (nx >= 0 && nx < MAP_COLS && ny >= 0 && ny < MAP_ROWS && maze[ny][nx] == 0 && !visited[ny][nx]) {
+                    visited[ny][nx] = true;
+                    parentMap[ny * MAP_COLS + nx] = curr;
+                    q.push({ nx, ny });
+                }
+            }
         }
-        else {
-            if (deltaY > 0) rect.y += speed;
-            else if (deltaY < 0) rect.y -= speed;
+
+        if (found) {
+            SDL_Point curr = { tCol, tRow };
+            while (curr.x != sCol || curr.y != sRow) {
+                path.push_back({ curr.x * TILE_SIZE + 10, curr.y * TILE_SIZE + 10 });
+                curr = parentMap[curr.y * MAP_COLS + curr.x];
+            }
+            std::reverse(path.begin(), path.end());
         }
     }
+
+public:
+    Enemy(int x, int y, int size, int moveSpeed) {
+        rect = { x, y, size, size };
+        speed = moveSpeed;
+    }
+
+    void update(int playerX, int playerY) {
+        // Obliczaj now¹ œcie¿kê co 30 klatek (¿eby nie obci¹¿aæ procesora)
+        static int frameCounter = 0;
+        if (frameCounter++ % 30 == 0) {
+            findPath(rect.x, rect.y, playerX, playerY);
+        }
+
+        if (!path.empty()) {
+            SDL_Point target = path[0];
+            if (rect.x < target.x) rect.x += speed;
+            else if (rect.x > target.x) rect.x -= speed;
+
+            if (rect.y < target.y) rect.y += speed;
+            else if (rect.y > target.y) rect.y -= speed;
+
+            // Jeœli dotar³ do punktu kontrolnego œcie¿ki, usuñ go i idŸ do nastêpnego
+            if (abs(rect.x - target.x) < speed && abs(rect.y - target.y) < speed) {
+                path.erase(path.begin());
+            }
+        }
+    }
+
     void draw(SDL_Renderer* renderer) {
         SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
         SDL_RenderFillRect(renderer, &rect);
     }
-    SDL_Rect getReck() { return rect; }
 };
 
 int main(int argc, char* argv[]) {
@@ -98,8 +196,8 @@ int main(int argc, char* argv[]) {
         return -1;
     }
     //Inicjalizacja obiektow
-    Player player(100, 100, 50, 15);
-    Enemy enemy(600, 400, 40, 3);
+    Player player(60, 60, 35, 10);
+    Enemy enemy(700, 500, 30, 2);
     //zmienna sterujaca gra
     bool running = true;
     SDL_Event e;
@@ -114,7 +212,16 @@ int main(int argc, char* argv[]) {
 
         SDL_SetRenderDrawColor(renderer, 34, 139, 34, 255);
         SDL_RenderClear(renderer);
-
+        // Rysowanie œcian labiryntu
+        for (int r = 0; r < MAP_ROWS; r++) {
+            for (int c = 0; c < MAP_COLS; c++) {
+                if (maze[r][c] == 1) {
+                    SDL_Rect wall = { c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, TILE_SIZE };
+                    SDL_SetRenderDrawColor(renderer, 210, 180, 140, 255); // Kolor s³omiany
+                    SDL_RenderFillRect(renderer, &wall);
+                }
+            }
+        }
         player.draw(renderer);
         enemy.draw(renderer);
         SDL_RenderPresent(renderer);
