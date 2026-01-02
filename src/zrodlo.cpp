@@ -149,7 +149,7 @@ public:
         rect = { x, y, size, size };
         speed = moveSpeed;
     }
-
+    SDL_Rect getRect() { return rect; }
     void update(int playerX, int playerY) {
         // Obliczaj now¹ œcie¿kê co 30 klatek (¿eby nie obci¹¿aæ procesora)
         static int frameCounter = 0;
@@ -200,6 +200,7 @@ int main(int argc, char* argv[]) {
     Enemy enemy(700, 500, 30, 2);
     //zmienna sterujaca gra
     bool running = true;
+    bool gameOver = false;
     SDL_Event e;
     while (running) {
         //Wejscie
@@ -207,9 +208,21 @@ int main(int argc, char* argv[]) {
             if (e.type == SDL_QUIT) running = false;
             player.handleInput(e);
         }
-        player.update();
-        enemy.update(player.getX(), player.getY());
+        //player.update();
+        //enemy.update(player.getX(), player.getY());
+        if (!gameOver) {
+            player.update();
+            enemy.update(player.getX(), player.getY());
 
+            // Sprawdzanie czy wróg dotkn¹³ gracza
+            SDL_Rect pRect = player.getRect();
+            SDL_Rect eRect = enemy.getRect(); // Upewnij siê, ¿e w klasie Enemy masz funkcjê getRect()!
+
+            if (SDL_HasIntersection(&pRect, &eRect)) {
+                gameOver = true;
+                std::cout << "Koniec Dozynek! Przeciwnik cie dopadl!" << std::endl;
+            }
+        }
         SDL_SetRenderDrawColor(renderer, 34, 139, 34, 255);
         SDL_RenderClear(renderer);
         // Rysowanie œcian labiryntu
@@ -224,6 +237,15 @@ int main(int argc, char* argv[]) {
         }
         player.draw(renderer);
         enemy.draw(renderer);
+        if (gameOver) {
+            // Rysujemy pó³przezroczysty czerwony nak³ad na ekran
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+            SDL_SetRenderDrawColor(renderer, 255, 0, 0, 150); // Czerwony z przezroczystoœci¹
+            SDL_Rect fullScreen = { 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT };
+            SDL_RenderFillRect(renderer, &fullScreen);
+
+            // Tutaj gra stoi w miejscu, bo update'y s¹ zablokowane przez if(!gameOver)
+        }
         SDL_RenderPresent(renderer);
         SDL_Delay(16);
     }
