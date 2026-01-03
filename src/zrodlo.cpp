@@ -97,8 +97,23 @@ public://Ustawianie pozycji startowej i predkosci
         if (SDL_GetTicks() > effectTimer) {
             currentSpeed = baseSpeed;
             invincible = false;
-            if (rect.w != 35) { rect.w = 35; rect.h = 35; }
+
+            
+            if (rect.w != 30) {
+                
+                int centerX = rect.x + rect.w / 2;
+                int centerY = rect.y + rect.h / 2;
+
+                rect.w = 30;
+                rect.h = 30;
+
+               
+                rect.x = centerX - rect.w / 2;
+                rect.y = centerY - rect.h / 2;
+            }
         }
+
+        
         if (rect.x < 0) rect.x = 0;
         if (rect.y < 0) rect.y = 0;
         if (rect.x + rect.w > SCREEN_WIDTH) rect.x = SCREEN_WIDTH - rect.w;
@@ -250,7 +265,7 @@ int main(int argc, char* argv[]) {
         return -1;
     }
     //Inicjalizacja obiektow
-    Player player(60, 60, 35, 10);
+    Player player(60, 60, 30, 10);
     Enemy enemy(700, 500, 30, 2);
     //Inicjalizacja boosterow
     std::vector<Booster> boosters;
