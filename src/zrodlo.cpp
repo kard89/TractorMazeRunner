@@ -1,10 +1,12 @@
-#include <SDL.h>
+ï»¿#include <SDL.h>
 #include <iostream>
 #include <vector>
 #include <queue>
 #include <cmath>
 #include <algorithm>
 #include <map>
+#include <fstream>  // Do obsÅ‚ugi pliku rekord.txt
+#include <string>   // Do zamiany liczb na tekst w tytule okna
 const int SCREEN_WIDTH = 800; //Szerokosc okna
 const int SCREEN_HEIGHT = 600; //Wysokosc okna
 //Klasa Gracza
@@ -13,18 +15,18 @@ const int MAP_ROWS = 12;
 const int MAP_COLS = 16;
 
 int maze[MAP_ROWS][MAP_COLS] = {
-    {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}, // 1. Góra (same œciany)
-    {1,0,0,0,1,0,0,0,0,0,0,0,1,0,0,1}, // 2. Przejœcie
+    {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}, // 1. Gï¿½ra (same ï¿½ciany)
+    {1,0,0,0,1,0,0,0,0,0,0,0,1,0,0,1}, // 2. Przejï¿½cie
     {1,0,1,0,1,0,1,1,1,1,1,0,1,0,1,1}, // 3.
     {1,0,1,0,0,0,0,0,0,0,1,0,0,0,0,1}, // 4.
     {1,0,1,1,1,1,1,1,0,1,1,1,1,1,0,1}, // 5.
-    {1,0,0,0,0,0,0,1,0,0,0,0,0,1,0,1}, // 6. Œrodek
+    {1,0,0,0,0,0,0,1,0,0,0,0,0,1,0,1}, // 6. ï¿½rodek
     {1,1,1,1,1,1,0,1,1,1,1,1,0,1,0,1}, // 7.
     {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1}, // 8.
     {1,0,1,1,1,1,1,1,1,1,1,1,1,1,0,1}, // 9.
     {1,0,1,0,0,0,0,0,0,0,0,0,0,1,0,1}, // 10.
     {1,0,0,0,1,1,1,1,0,1,1,1,0,0,0,1}, // 11.
-    {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}  // 12. Dó³ (same œciany)
+    {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}  // 12. Dï¿½ (same ï¿½ciany)
 };
 class Player {
 private:
@@ -55,12 +57,12 @@ public://Ustawianie pozycji startowej i predkosci
             }
             for (int r = 0; r < MAP_ROWS; r++) {
                 for (int c = 0; c < MAP_COLS; c++) {
-                    if (maze[r][c] == 1) { // Jeœli to pole jest œcian¹
+                    if (maze[r][c] == 1) { // Jeï¿½li to pole jest ï¿½cianï¿½
                         SDL_Rect wall = { c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, TILE_SIZE };
 
-                        // Funkcja SDL_HasIntersection sprawdza, czy dwa kwadraty na siebie nachodz¹
+                        // Funkcja SDL_HasIntersection sprawdza, czy dwa kwadraty na siebie nachodzï¿½
                         if (SDL_HasIntersection(&rect, &wall)) {
-                            // Jeœli nast¹pi³a kolizja, cofnij gracza do starej pozycji
+                            // Jeï¿½li nastï¿½piï¿½a kolizja, cofnij gracza do starej pozycji
                             rect.x = oldX;
                             rect.y = oldY;
                         }
@@ -68,7 +70,7 @@ public://Ustawianie pozycji startowej i predkosci
                 }
             }
         }
-        
+
     }
     void update() { //Punkt kontrolny czy nasz ,,traktor" nie wyjezdza poza wymiar ekranu
         if (rect.x < 0) rect.x = 0;
@@ -79,7 +81,7 @@ public://Ustawianie pozycji startowej i predkosci
     void draw(SDL_Renderer* renderer) { //rysowanie gracza w oknie
         SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);//ustawienie koloru na bialy
         SDL_RenderFillRect(renderer, &rect);
-        
+
     }
     //Funkcja umozliwaja poznanie antagnoiscie pozycje gracza
     int getX() { return rect.x; }
@@ -97,9 +99,9 @@ class Enemy {
 private:
     SDL_Rect rect;
     int speed;
-    std::vector<SDL_Point> path; // Przechowuje listê punktów do przejœcia
+    std::vector<SDL_Point> path; // Przechowuje listï¿½ punktï¿½w do przejï¿½cia
 
-    // Funkcja obliczaj¹ca drogê (Uproszczony A*)
+    // Funkcja obliczajï¿½ca drogï¿½ (Uproszczony A*)
     void findPath(int startX, int startY, int targetX, int targetY) {
         path.clear();
         int sCol = startX / TILE_SIZE;
@@ -109,7 +111,7 @@ private:
 
         if (sCol == tCol && sRow == tRow) return;
 
-        // Prosty algorytm zalewowy (BFS), który wyznaczy trasê w labiryncie
+        // Prosty algorytm zalewowy (BFS), ktï¿½ry wyznaczy trasï¿½ w labiryncie
         std::queue<SDL_Point> q;
         q.push({ sCol, sRow });
 
@@ -151,7 +153,7 @@ public:
     }
     SDL_Rect getRect() { return rect; }
     void update(int playerX, int playerY) {
-        // Obliczaj now¹ œcie¿kê co 30 klatek (¿eby nie obci¹¿aæ procesora)
+        // Obliczaj nowï¿½ ï¿½cieï¿½kï¿½ co 30 klatek (ï¿½eby nie obciï¿½ï¿½aï¿½ procesora)
         static int frameCounter = 0;
         if (frameCounter++ % 30 == 0) {
             findPath(rect.x, rect.y, playerX, playerY);
@@ -165,7 +167,7 @@ public:
             if (rect.y < target.y) rect.y += speed;
             else if (rect.y > target.y) rect.y -= speed;
 
-            // Jeœli dotar³ do punktu kontrolnego œcie¿ki, usuñ go i idŸ do nastêpnego
+            // Jeï¿½li dotarï¿½ do punktu kontrolnego ï¿½cieï¿½ki, usuï¿½ go i idï¿½ do nastï¿½pnego
             if (abs(rect.x - target.x) < speed && abs(rect.y - target.y) < speed) {
                 path.erase(path.begin());
             }
@@ -177,7 +179,23 @@ public:
         SDL_RenderFillRect(renderer, &rect);
     }
 };
+int wczytajRekord() {
+    int rekord = 0;
+    std::ifstream plik("rekord.txt");
+    if (plik.is_open()) {
+        plik >> rekord;
+        plik.close();
+    }
+    return rekord;
+}
 
+void zapiszRekord(int punkty) {
+    std::ofstream plik("rekord.txt");
+    if (plik.is_open()) {
+        plik << punkty;
+        plik.close();
+    }
+}
 int main(int argc, char* argv[]) {
     // Inicjalizacja
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
@@ -191,7 +209,7 @@ int main(int argc, char* argv[]) {
         SCREEN_WIDTH, SCREEN_HEIGHT, 0);
     //Renderowanie obrazkow
     SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
-   if (!window) {
+    if (!window) {
         std::cout << "Window Error: " << SDL_GetError() << std::endl;
         return -1;
     }
@@ -202,6 +220,9 @@ int main(int argc, char* argv[]) {
     bool running = true;
     bool gameOver = false;
     SDL_Event e;
+    int rekordZycia = wczytajRekord(); // Åadujemy stary rekord na start
+    Uint32 startTime = SDL_GetTicks(); // ZapamiÄ™tujemy moment startu
+    int aktualnePunkty = 0;
     while (running) {
         //Wejscie
         while (SDL_PollEvent(&e)) {
@@ -211,26 +232,39 @@ int main(int argc, char* argv[]) {
         //player.update();
         //enemy.update(player.getX(), player.getY());
         if (!gameOver) {
+            // 1. OBLICZANIE PUNKTÃ“W (1000ms = 1 sekunda, razy 10 punktÃ³w)
+            Uint32 czasTrwania = SDL_GetTicks() - startTime;
+            aktualnePunkty = (czasTrwania / 1000) * 10;
+
+            // 2. AKTUALIZACJA TYTUÅU OKNA
+            // Sklejamy tekst: Punkty + Rekord
+            std::string tytul = "Traktorzysta | Punkty: " + std::to_string(aktualnePunkty) + " | Rekord: " + std::to_string(rekordZycia);
+            SDL_SetWindowTitle(window, tytul.c_str());
+
             player.update();
             enemy.update(player.getX(), player.getY());
 
-            // Sprawdzanie czy wróg dotkn¹³ gracza
+            // 3. KOLIZJA I ZAPIS REKORDU
+            // 1. Pobieramy kopie prostokÄ…tÃ³w do lokalnych zmiennych
             SDL_Rect pRect = player.getRect();
-            SDL_Rect eRect = enemy.getRect(); // Upewnij siê, ¿e w klasie Enemy masz funkcjê getRect()!
+            SDL_Rect eRect = enemy.getRect();
 
+            // 2. Teraz przekazujemy adresy tych zmiennych
             if (SDL_HasIntersection(&pRect, &eRect)) {
                 gameOver = true;
-                std::cout << "Koniec Dozynek! Przeciwnik cie dopadl!" << std::endl;
+                if (aktualnePunkty > rekordZycia) {
+                    zapiszRekord(aktualnePunkty);
+                }
             }
         }
         SDL_SetRenderDrawColor(renderer, 34, 139, 34, 255);
         SDL_RenderClear(renderer);
-        // Rysowanie œcian labiryntu
+        // Rysowanie ï¿½cian labiryntu
         for (int r = 0; r < MAP_ROWS; r++) {
             for (int c = 0; c < MAP_COLS; c++) {
                 if (maze[r][c] == 1) {
                     SDL_Rect wall = { c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, TILE_SIZE };
-                    SDL_SetRenderDrawColor(renderer, 210, 180, 140, 255); // Kolor s³omiany
+                    SDL_SetRenderDrawColor(renderer, 210, 180, 140, 255); // Kolor sï¿½omiany
                     SDL_RenderFillRect(renderer, &wall);
                 }
             }
@@ -238,23 +272,23 @@ int main(int argc, char* argv[]) {
         player.draw(renderer);
         enemy.draw(renderer);
         if (gameOver) {
-            // Rysujemy pó³przezroczysty czerwony nak³ad na ekran
+            // Rysujemy pï¿½przezroczysty czerwony nakï¿½ad na ekran
             SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-            SDL_SetRenderDrawColor(renderer, 255, 0, 0, 150); // Czerwony z przezroczystoœci¹
+            SDL_SetRenderDrawColor(renderer, 255, 0, 0, 150); // Czerwony z przezroczystoï¿½ciï¿½
             SDL_Rect fullScreen = { 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT };
             SDL_RenderFillRect(renderer, &fullScreen);
 
-            // Tutaj gra stoi w miejscu, bo update'y s¹ zablokowane przez if(!gameOver)
+            // Tutaj gra stoi w miejscu, bo update'y sï¿½ zablokowane przez if(!gameOver)
         }
         SDL_RenderPresent(renderer);
         SDL_Delay(16);
     }
-    
-    // Pauza ¿eby zobaczyæ okno (3 sekundy)
+
+    // Pauza ï¿½eby zobaczyï¿½ okno (3 sekundy)
    // SDL_Delay(3000);
-    
-    // Sprz¹tanie
-SDL_DestroyRenderer(renderer);
+
+    // Sprzï¿½tanie
+    SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
     //KOMENTARZ
