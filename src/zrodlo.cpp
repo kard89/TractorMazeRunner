@@ -8,6 +8,8 @@
 #include <map>
 #include <fstream>  // Do obsługi pliku rekord.txt
 #include <string>   // Do zamiany liczb na tekst w tytule okna
+#include <iomanip>
+
 
 const int SCREEN_WIDTH = 1120; //Szerokosc okna (16 * 70)
 const int SCREEN_HEIGHT = 840; //Wysokosc okna (12 * 70)
@@ -17,7 +19,7 @@ const int MAP_ROWS = 12;
 const int MAP_COLS = 16;
 
 //Struktura Boosterow
-// --- ZMIANA: Zastąpienie SHRINK (zmniejszania) nowym typem SLOW_ENEMY (błoto) ---
+// --- ZMIANA: Zastąpienie SHRINK (zmniejszania) nowym typem SLOW_ENEMY (błoto)
 enum BoosterType { SPEED_UP, INVINCIBLE, SLOW_ENEMY, FREEZE, NONE };
 struct Booster {
     SDL_Rect rect;
@@ -46,7 +48,8 @@ private:
     int baseSpeed;
     int currentSpeed;
     bool invincible = false;
-    Uint32 effectTimer = 0;
+    Uint32 invincibleTimer = 0;
+    Uint32 speedTimer = 0;
 public://Ustawianie pozycji startowej i predkosci
     Player(int x, int y, int size, int moveSpeed) {
         rect.x = x;
@@ -57,12 +60,14 @@ public://Ustawianie pozycji startowej i predkosci
         currentSpeed = moveSpeed;
     }
     void applyBooster(BoosterType type) {
-        effectTimer = SDL_GetTicks() + 5000; // Efekt trwa 5 sekund
-        switch (type) {
-        case SPEED_UP:   currentSpeed = baseSpeed * 2; break;
-        case INVINCIBLE: invincible = true; break;
-            // Usunięto SHRINK, bo powodował błędy
-        default: break;
+        Uint32 now = SDL_GetTicks();
+        if (type == SPEED_UP) {
+            currentSpeed = baseSpeed * 2;
+            speedTimer = now + 5000;
+        }
+        else if (type == INVINCIBLE) {
+            invincible = true;
+            invincibleTimer = now + 5000;
         }
     }
     void handleInput(SDL_Event& e) {
@@ -96,12 +101,13 @@ public://Ustawianie pozycji startowej i predkosci
         }
     }
     void update() { //Punkt kontrolny czy nasz ,,traktor" nie wyjezdza poza wymiar ekranu
-        if (SDL_GetTicks() > effectTimer) {
+        Uint32 now = SDL_GetTicks();
+        if (now > speedTimer) {
             currentSpeed = baseSpeed;
-            invincible = false;
-            // Usunięto logikę powiększania po SHRINK
         }
-
+        if (now > invincibleTimer) {
+            invincible = false;
+        }
 
         if (rect.x < 0) rect.x = 0;
         if (rect.y < 0) rect.y = 0;
@@ -113,13 +119,21 @@ public://Ustawianie pozycji startowej i predkosci
         else SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);//ustawienie koloru na bialy
         SDL_RenderFillRect(renderer, &rect);
     }
+    float getInvincibleRemainingTime() {
+        if (SDL_GetTicks() >= invincibleTimer) return 0;
+        return(invincibleTimer - SDL_GetTicks()) / 1000.0f;
+    }
+    float getSpeedRemainingTime() {
+        if (SDL_GetTicks() >= speedTimer) return 0;
+        return(speedTimer - SDL_GetTicks()) / 1000.0f;
+    }
     //Funkcja umozliwaja poznanie antagnoiscie pozycje gracza
     int getX() { return rect.x; }
     int getY() { return rect.y; }
     SDL_Rect getRect() { return rect; }
     bool isInvincible() { return invincible; }
+  bool isSpeedUp() { return currentSpeed > baseSpeed; }
 };
-
 class Enemy {
 private:
     SDL_Rect rect;
@@ -127,7 +141,8 @@ private:
     int currentSpeed;
     bool frozen = false;
     bool slowed = false; // Flaga spowolnienia (Błoto)
-    Uint32 effectTimer = 0;
+    Uint32 freezeTimer = 0;
+    Uint32 slowTimer = 0;
     std::vector<SDL_Point> path; // Przechowuje list punktw do przejcia
 
     // Funkcja obliczajca drog (Uproszczony A*)
@@ -187,26 +202,31 @@ public:
     void freeze() {
         frozen = true;
         slowed = false;
-        effectTimer = SDL_GetTicks() + 5000;
+        freezeTimer = SDL_GetTicks() + 5000;
+      
     }
 
     // Nowa funkcja do spowalniania (Błoto)
     void slowDown() {
         slowed = true;
         frozen = false;
-        effectTimer = SDL_GetTicks() + 5000;
+        slowTimer = SDL_GetTicks() + 5000;
         currentSpeed = baseSpeed / 2; // Zwolnij o połowę
         if (currentSpeed < 1) currentSpeed = 1;
     }
 
     void update(int playerX, int playerY) {
         // Obsługa timerów efektów
-        if (frozen || slowed) {
-            if (SDL_GetTicks() > effectTimer) {
-                frozen = false;
-                slowed = false;
-                currentSpeed = baseSpeed;
-            }
+        Uint32 now = SDL_GetTicks();
+        if (frozen && now > freezeTimer) {
+            frozen = false;
+        }
+        if (slowed && now > slowTimer) {
+            slowed = false;
+            currentSpeed = baseSpeed;
+        }
+        if (slowed && !frozen) {
+            currentSpeed = baseSpeed / 2;
         }
 
         if (frozen) return;
@@ -233,6 +253,15 @@ public:
             }
         }
     }
+    float getFreezeRemainingTime() {
+        if (SDL_GetTicks() >= freezeTimer) return 0;
+        return(freezeTimer - SDL_GetTicks()) / 1000.0f;
+    }
+    float getSlowRemainingTime() {
+        if (SDL_GetTicks() >= slowTimer) return 0;
+        return(slowTimer - SDL_GetTicks()) / 1000.0f;
+    }
+
 
     void draw(SDL_Renderer* renderer) {
         if (frozen) SDL_SetRenderDrawColor(renderer, 0, 255, 255, 255); // Niebieski jeśli zamrożony
@@ -240,6 +269,10 @@ public:
         else SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
         SDL_RenderFillRect(renderer, &rect);
     }
+   
+    
+    bool isFrozen() { return frozen; }
+    bool isSlowed() { return slowed; }
 };
 
 int wczytajRekord() {
@@ -311,6 +344,24 @@ int main(int argc, char* argv[]) {
             // 2. AKTUALIZACJA TYTUŁU OKNA
             // Sklejamy tekst: Punkty + Rekord
             std::string tytul = "Traktorzysta | Punkty: " + std::to_string(aktualnePunkty) + " | Rekord: " + std::to_string(rekordZycia);
+            if (player.isInvincible()) {
+                float t = player.getInvincibleRemainingTime();
+                if(t>0)tytul += "|[TARCZA:" + std::to_string(t).substr(0, 3) + "s]";
+           }
+            if (player.isSpeedUp()) {
+                float t = player.getSpeedRemainingTime();
+                if (t > 0)tytul += "|[TURBO:" + std::to_string(t).substr(0, 3) + "s]";
+            }
+            if (enemy.isFrozen()) {
+                float t = enemy.getFreezeRemainingTime();
+                if (t > 0)tytul += "|[ZAMROZENIE:" + std::to_string(t).substr(0, 3) + "s]";
+            }
+            if (enemy.isSlowed()) {
+                float t = enemy.getSlowRemainingTime();
+                if (t > 0)tytul += "|[BLOTO:" + std::to_string(t).substr(0, 3) + "s]";
+            }
+            
+            
             SDL_SetWindowTitle(window, tytul.c_str());
 
             player.update();
