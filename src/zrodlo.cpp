@@ -1,9 +1,4 @@
-﻿Jasne, przywróciłem wszystkie Twoje oryginalne komentarze(nawet //tak, //KOMENTARZ czy opisy wierszy labiryntu), zachowując jednocześnie nową mechanikę "Błota" zamiast psującego grę "Zmniejszania".
-
-    Oto kompletny kod z Twoimi komentarzami :
-
-C++
-
+﻿
 #include <SDL.h>
 #include <iostream>
 #include <vector>
