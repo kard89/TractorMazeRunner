@@ -5,18 +5,18 @@
 #include <cmath>
 #include <algorithm>
 #include <map>
-#include <fstream>  // Do obsługi pliku rekord.txt
-#include <string>   // Do zamiany liczb na tekst w tytule okna
+#include <fstream>
+#include <string>
 
-const int SCREEN_WIDTH = 800; //Szerokosc okna
-const int SCREEN_HEIGHT = 600; //Wysokosc okna
-//Klasa Gracza
-const int TILE_SIZE = 50;
+const int SCREEN_WIDTH = 1120;
+const int SCREEN_HEIGHT = 840;
+const int TILE_SIZE = 70;
 const int MAP_ROWS = 12;
 const int MAP_COLS = 16;
 
-//Struktura Boosterow
-enum BoosterType { SPEED_UP, INVINCIBLE, SHRINK, FREEZE, NONE };
+// --- ZMIANA 1: Zastąpienie SHRINK nowym typem SLOW_ENEMY ---
+enum BoosterType { SPEED_UP, INVINCIBLE, SLOW_ENEMY, FREEZE, NONE };
+
 struct Booster {
     SDL_Rect rect;
     BoosterType type;
@@ -24,28 +24,28 @@ struct Booster {
 };
 
 int maze[MAP_ROWS][MAP_COLS] = {
-    {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}, // 1. Gra (same ciany)
-    {1,0,0,0,1,0,0,0,0,0,0,0,1,0,0,1}, // 2. Przejcie
-    {1,0,1,0,1,0,1,1,1,1,1,0,1,0,1,1}, // 3.
-    {1,0,1,0,0,0,0,0,0,0,1,0,0,0,0,1}, // 4.
-    {1,0,1,1,1,1,1,1,0,1,1,1,1,1,0,1}, // 5.
-    {1,0,0,0,0,0,0,1,0,0,0,0,0,1,0,1}, // 6. rodek
-    {1,1,1,1,1,1,0,1,1,1,1,1,0,1,0,1}, // 7.
-    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1}, // 8.
-    {1,0,1,1,1,1,1,1,1,1,1,1,1,1,0,1}, // 9.
-    {1,0,1,0,0,0,0,0,0,0,0,0,0,1,0,1}, // 10.
-    {1,0,0,0,1,1,1,1,0,1,1,1,0,0,0,1}, // 11.
-    {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}  // 12. D (same ciany)
+    {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
+    {1,0,0,0,1,0,0,0,0,0,0,0,1,0,0,1},
+    {1,0,1,0,1,0,1,1,1,1,1,0,1,0,1,1},
+    {1,0,1,0,0,0,0,0,0,0,1,0,0,0,0,1},
+    {1,0,1,1,1,1,1,1,0,1,1,1,1,1,0,1},
+    {1,0,0,0,0,0,0,1,0,0,0,0,0,1,0,1},
+    {1,1,1,1,1,1,0,1,1,1,1,1,0,1,0,1},
+    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+    {1,0,1,1,1,1,1,1,1,1,1,1,1,1,0,1},
+    {1,0,1,0,0,0,0,0,0,0,0,0,0,1,0,1},
+    {1,0,0,0,1,1,1,1,0,1,1,1,0,0,0,1},
+    {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}
 };
 
 class Player {
 private:
-    SDL_Rect rect; //struktura do przechowywania polozenia
+    SDL_Rect rect;
     int baseSpeed;
     int currentSpeed;
     bool invincible = false;
     Uint32 effectTimer = 0;
-public://Ustawianie pozycji startowej i predkosci
+public:
     Player(int x, int y, int size, int moveSpeed) {
         rect.x = x;
         rect.y = y;
@@ -54,37 +54,33 @@ public://Ustawianie pozycji startowej i predkosci
         baseSpeed = moveSpeed;
         currentSpeed = moveSpeed;
     }
+
     void applyBooster(BoosterType type) {
         effectTimer = SDL_GetTicks() + 5000; // Efekt trwa 5 sekund
         switch (type) {
         case SPEED_UP:   currentSpeed = baseSpeed * 2; break;
         case INVINCIBLE: invincible = true; break;
-        case SHRINK:     rect.w = 15; rect.h = 15; break;
+            // --- ZMIANA 2: Usunięto case SHRINK ---
         default: break;
         }
     }
+
     void handleInput(SDL_Event& e) {
         if (e.type == SDL_KEYDOWN) {
             int oldX = rect.x;
             int oldY = rect.y;
             switch (e.key.keysym.sym) {
-            case SDLK_UP: rect.y -= currentSpeed;
-                break;
-            case SDLK_DOWN: rect.y += currentSpeed;
-                break;
-            case SDLK_LEFT: rect.x -= currentSpeed;
-                break;
-            case SDLK_RIGHT: rect.x += currentSpeed;
-                break;
+            case SDLK_UP: rect.y -= currentSpeed; break;
+            case SDLK_DOWN: rect.y += currentSpeed; break;
+            case SDLK_LEFT: rect.x -= currentSpeed; break;
+            case SDLK_RIGHT: rect.x += currentSpeed; break;
             }
+
             for (int r = 0; r < MAP_ROWS; r++) {
                 for (int c = 0; c < MAP_COLS; c++) {
-                    if (maze[r][c] == 1) { // Jeli to pole jest cian
+                    if (maze[r][c] == 1) {
                         SDL_Rect wall = { c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, TILE_SIZE };
-
-                        // Funkcja SDL_HasIntersection sprawdza, czy dwa kwadraty na siebie nachodz
                         if (SDL_HasIntersection(&rect, &wall)) {
-                            // Jeli nastpia kolizja, cofnij gracza do starej pozycji
                             rect.x = oldX;
                             rect.y = oldY;
                         }
@@ -93,38 +89,27 @@ public://Ustawianie pozycji startowej i predkosci
             }
         }
     }
-    void update() { //Punkt kontrolny czy nasz ,,traktor" nie wyjezdza poza wymiar ekranu
+
+    void update() {
         if (SDL_GetTicks() > effectTimer) {
             currentSpeed = baseSpeed;
             invincible = false;
-
-            
-            if (rect.w != 30) {
-                
-                int centerX = rect.x + rect.w / 2;
-                int centerY = rect.y + rect.h / 2;
-
-                rect.w = 30;
-                rect.h = 30;
-
-               
-                rect.x = centerX - rect.w / 2;
-                rect.y = centerY - rect.h / 2;
-            }
+            // --- ZMIANA 3: Usunięto kod przywracający rozmiar gracza (rect.w/rect.h) ---
+            // Nie musimy już sprawdzać if (rect.w != 50)
         }
 
-        
         if (rect.x < 0) rect.x = 0;
         if (rect.y < 0) rect.y = 0;
         if (rect.x + rect.w > SCREEN_WIDTH) rect.x = SCREEN_WIDTH - rect.w;
         if (rect.y + rect.h > SCREEN_HEIGHT) rect.y = SCREEN_HEIGHT - rect.h;
     }
-    void draw(SDL_Renderer* renderer) { //rysowanie gracza w oknie
-        if (invincible) SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255); // Kolor żółty jeśli nieśmiertelny
-        else SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);//ustawienie koloru na bialy
+
+    void draw(SDL_Renderer* renderer) {
+        if (invincible) SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255);
+        else SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
         SDL_RenderFillRect(renderer, &rect);
     }
-    //Funkcja umozliwaja poznanie antagnoiscie pozycje gracza
+
     int getX() { return rect.x; }
     int getY() { return rect.y; }
     SDL_Rect getRect() { return rect; }
@@ -134,12 +119,13 @@ public://Ustawianie pozycji startowej i predkosci
 class Enemy {
 private:
     SDL_Rect rect;
-    int speed;
+    int baseSpeed; // Przechowujemy bazową prędkość
+    int currentSpeed;
     bool frozen = false;
-    Uint32 freezeTimer = 0;
-    std::vector<SDL_Point> path; // Przechowuje list punktw do przejcia
+    bool slowed = false; // --- ZMIANA 4: Flaga spowolnienia ---
+    Uint32 effectTimer = 0;
+    std::vector<SDL_Point> path;
 
-    // Funkcja obliczajca drog (Uproszczony A*)
     void findPath(int startX, int startY, int targetX, int targetY) {
         path.clear();
         int sCol = startX / TILE_SIZE;
@@ -149,7 +135,6 @@ private:
 
         if (sCol == tCol && sRow == tRow) return;
 
-        // Prosty algorytm zalewowy (BFS), ktry wyznaczy tras w labiryncie
         std::queue<SDL_Point> q;
         q.push({ sCol, sRow });
 
@@ -187,21 +172,39 @@ private:
 public:
     Enemy(int x, int y, int size, int moveSpeed) {
         rect = { x, y, size, size };
-        speed = moveSpeed;
+        baseSpeed = moveSpeed;
+        currentSpeed = moveSpeed;
     }
     SDL_Rect getRect() { return rect; }
+
     void freeze() {
         frozen = true;
-        freezeTimer = SDL_GetTicks() + 5000;
+        slowed = false; // Resetujemy inne stany
+        effectTimer = SDL_GetTicks() + 5000;
+    }
+
+    // --- ZMIANA 5: Funkcja spowalniająca ---
+    void slowDown() {
+        slowed = true;
+        frozen = false;
+        effectTimer = SDL_GetTicks() + 5000;
+        currentSpeed = baseSpeed / 2; // Połowa prędkości
+        if (currentSpeed < 1) currentSpeed = 1; // Żeby się nie zatrzymał całkowicie
     }
 
     void update(int playerX, int playerY) {
-        if (frozen) {
-            if (SDL_GetTicks() > freezeTimer) frozen = false;
-            else return;
+        // Obsługa timerów efektów
+        if (frozen || slowed) {
+            if (SDL_GetTicks() > effectTimer) {
+                frozen = false;
+                slowed = false;
+                currentSpeed = baseSpeed;
+            }
         }
 
-        // Obliczaj now ciek co 30 klatek (eby nie obcia procesora)
+        if (frozen) return; // Jak zamrożony, to nie wykonuje ruchu
+
+        // Obliczaj ścieżkę co 30 klatek
         static int frameCounter = 0;
         if (frameCounter++ % 30 == 0) {
             findPath(rect.x, rect.y, playerX, playerY);
@@ -209,22 +212,25 @@ public:
 
         if (!path.empty()) {
             SDL_Point target = path[0];
-            if (rect.x < target.x) rect.x += speed;
-            else if (rect.x > target.x) rect.x -= speed;
 
-            if (rect.y < target.y) rect.y += speed;
-            else if (rect.y > target.y) rect.y -= speed;
+            // Używamy currentSpeed zamiast speed
+            if (rect.x < target.x) rect.x += currentSpeed;
+            else if (rect.x > target.x) rect.x -= currentSpeed;
 
-            // Jeli dotar do punktu kontrolnego cieki, usu go i id do nastpnego
-            if (abs(rect.x - target.x) < speed && abs(rect.y - target.y) < speed) {
+            if (rect.y < target.y) rect.y += currentSpeed;
+            else if (rect.y > target.y) rect.y -= currentSpeed;
+
+            // Sprawdzamy dotarcie do punktu z uwzględnieniem aktualnej prędkości
+            if (abs(rect.x - target.x) < currentSpeed + 1 && abs(rect.y - target.y) < currentSpeed + 1) {
                 path.erase(path.begin());
             }
         }
     }
 
     void draw(SDL_Renderer* renderer) {
-        if (frozen) SDL_SetRenderDrawColor(renderer, 0, 255, 255, 255); // Niebieski jeśli zamrożony
-        else SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+        if (frozen) SDL_SetRenderDrawColor(renderer, 0, 255, 255, 255); // Niebieski (Lód)
+        else if (slowed) SDL_SetRenderDrawColor(renderer, 139, 69, 19, 255); // --- ZMIANA 6: Brązowy (Błoto) ---
+        else SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255); // Czerwony (Normalny)
         SDL_RenderFillRect(renderer, &rect);
     }
 };
@@ -248,73 +254,64 @@ void zapiszRekord(int punkty) {
 }
 
 int main(int argc, char* argv[]) {
-    // Inicjalizacja
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         std::cout << "SDL Error: " << SDL_GetError() << std::endl;
         return -1;
     }
 
-    // Tworzenie okna
     SDL_Window* window = SDL_CreateWindow("Traktorem przez wies",
         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
         SCREEN_WIDTH, SCREEN_HEIGHT, 0);
-    //Renderowanie obrazkow
+
     SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
-    if (!window) {
-        std::cout << "Window Error: " << SDL_GetError() << std::endl;
-        return -1;
-    }
-    //Inicjalizacja obiektow
-    Player player(60, 60, 30, 10);
-    Enemy enemy(700, 500, 30, 2);
-    //Inicjalizacja boosterow
+    if (!window) return -1;
+
+    Player player(80, 80, 50, 10);
+    Enemy enemy(990, 710, 50, 2);
+
     std::vector<Booster> boosters;
-    boosters.push_back({ {150, 65, 25, 25}, SPEED_UP, true });
-    boosters.push_back({ {350, 165, 25, 25}, INVINCIBLE, true });
-    boosters.push_back({ {65, 515, 25, 25}, SHRINK, true });
-    boosters.push_back({ {715, 65, 25, 25}, FREEZE, true });
-    //zmienna sterujaca gra
+    boosters.push_back({ {225, 85, 40, 40}, SPEED_UP, true });
+    boosters.push_back({ {505, 225, 40, 40}, INVINCIBLE, true });
+    // --- ZMIANA 7: Podmiana SHRINK na SLOW_ENEMY w wektorze ---
+    boosters.push_back({ {85, 715, 40, 40}, SLOW_ENEMY, true });
+    boosters.push_back({ {995, 85, 40, 40}, FREEZE, true });
+
     bool running = true;
     bool gameOver = false;
     SDL_Event e;
-    int rekordZycia = wczytajRekord(); // Ładujemy stary rekord na start
-    Uint32 startTime = SDL_GetTicks(); // Zapamiętujemy moment startu
+    int rekordZycia = wczytajRekord();
+    Uint32 startTime = SDL_GetTicks();
     int aktualnePunkty = 0;
+
     while (running) {
-        //Wejscie
         while (SDL_PollEvent(&e)) {
             if (e.type == SDL_QUIT) running = false;
             if (!gameOver) player.handleInput(e);
         }
 
         if (!gameOver) {
-            // 1. OBLICZANIE PUNKTÓW (1000ms = 1 sekunda, razy 10 punktów)
             Uint32 czasTrwania = SDL_GetTicks() - startTime;
             aktualnePunkty = (czasTrwania / 1000) * 10;
 
-            // 2. AKTUALIZACJA TYTUŁU OKNA
-            // Sklejamy tekst: Punkty + Rekord
             std::string tytul = "Traktorzysta | Punkty: " + std::to_string(aktualnePunkty) + " | Rekord: " + std::to_string(rekordZycia);
             SDL_SetWindowTitle(window, tytul.c_str());
 
             player.update();
             enemy.update(player.getX(), player.getY());
 
-            // Logika zbierania boosterów
             SDL_Rect pRect = player.getRect();
             for (auto& b : boosters) {
                 if (b.active && SDL_HasIntersection(&pRect, &b.rect)) {
+                    // --- ZMIANA 8: Obsługa nowego boostera ---
                     if (b.type == FREEZE) enemy.freeze();
+                    else if (b.type == SLOW_ENEMY) enemy.slowDown();
                     else player.applyBooster(b.type);
+
                     b.active = false;
                 }
             }
 
-            // 3. KOLIZJA I ZAPIS REKORDU
-            // Pobieramy prostokąt przeciwnika do sprawdzenia kolizji
             SDL_Rect eRect = enemy.getRect();
-
-            // Sprawdzamy kolizję gracza z wrogiem (tylko jeśli gracz nie jest nieśmiertelny)
             if (SDL_HasIntersection(&pRect, &eRect) && !player.isInvincible()) {
                 gameOver = true;
                 if (aktualnePunkty > rekordZycia) {
@@ -322,48 +319,48 @@ int main(int argc, char* argv[]) {
                 }
             }
         }
+
         SDL_SetRenderDrawColor(renderer, 34, 139, 34, 255);
         SDL_RenderClear(renderer);
-        // Rysowanie cian labiryntu
+
         for (int r = 0; r < MAP_ROWS; r++) {
             for (int c = 0; c < MAP_COLS; c++) {
                 if (maze[r][c] == 1) {
                     SDL_Rect wall = { c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, TILE_SIZE };
-                    SDL_SetRenderDrawColor(renderer, 210, 180, 140, 255); // Kolor somiany
+                    SDL_SetRenderDrawColor(renderer, 210, 180, 140, 255);
                     SDL_RenderFillRect(renderer, &wall);
                 }
             }
         }
-        //rysowanie boosterow
+
         for (auto& b : boosters) {
             if (b.active) {
                 if (b.type == SPEED_UP) SDL_SetRenderDrawColor(renderer, 255, 165, 0, 255);
                 else if (b.type == INVINCIBLE) SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255);
-                else if (b.type == SHRINK) SDL_SetRenderDrawColor(renderer, 255, 0, 255, 255);
+                // --- ZMIANA 9: Kolor dla SLOW_ENEMY (Brązowy - Błoto) ---
+                else if (b.type == SLOW_ENEMY) SDL_SetRenderDrawColor(renderer, 139, 69, 19, 255);
                 else if (b.type == FREEZE) SDL_SetRenderDrawColor(renderer, 0, 255, 255, 255);
                 SDL_RenderFillRect(renderer, &b.rect);
             }
         }
+
         player.draw(renderer);
         enemy.draw(renderer);
+
         if (gameOver) {
-            // Rysujemy pprzezroczysty czerwony nakad na ekran
             SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-            SDL_SetRenderDrawColor(renderer, 255, 0, 0, 150); // Czerwony z przezroczystoci
+            SDL_SetRenderDrawColor(renderer, 255, 0, 0, 150);
             SDL_Rect fullScreen = { 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT };
             SDL_RenderFillRect(renderer, &fullScreen);
-
-            // Tutaj gra stoi w miejscu, bo update'y s zablokowane przez if(!gameOver)
         }
+
         SDL_RenderPresent(renderer);
         SDL_Delay(16);
     }
 
-    // Sprztanie
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
-    //KOMENTARZ
-    //tak
+
     return 0;
 }
