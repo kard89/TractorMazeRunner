@@ -382,5 +382,6 @@ int main(int argc, char* argv[]) {
     SDL_Quit();
     //KOMENTARZ
     //tak
+    //test
     return 0;
 }
