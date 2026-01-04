@@ -45,7 +45,7 @@ private:
     int baseSpeed;
     int currentSpeed;
     bool invincible = false;
-    Uint32 invincibleTimer = 0;
+    Uint32 invincibleTimer = 0;//rozdzielone timery dla boosterow
     Uint32 speedTimer = 0;
 public://Ustawianie pozycji startowej i predkosci
     Player(int x, int y, int size, int moveSpeed) {
@@ -116,6 +116,7 @@ public://Ustawianie pozycji startowej i predkosci
         else SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);//ustawienie koloru na bialy
         SDL_RenderFillRect(renderer, &rect);
     }
+    //Osobne funkcje czasow dla boosterow
     float getInvincibleRemainingTime() {
         if (SDL_GetTicks() >= invincibleTimer) return 0;
         return(invincibleTimer - SDL_GetTicks()) / 1000.0f;
@@ -250,6 +251,7 @@ public:
             }
         }
     }
+    //Osobne funkcje czasu dla boosterow
     float getFreezeRemainingTime() {
         if (SDL_GetTicks() >= freezeTimer) return 0;
         return(freezeTimer - SDL_GetTicks()) / 1000.0f;
@@ -361,7 +363,7 @@ int main(int argc, char* argv[]) {
             // 2. AKTUALIZACJA TYTUŁU OKNA
             // Sklejamy tekst: Punkty + Rekord
             std::string tytul = "Traktorzysta | Punkty: " + std::to_string(aktualnePunkty) + " | Rekord: " + std::to_string(rekordZycia);
-            if (player.isInvincible()) {
+            if (player.isInvincible()) {//Dodanie czasu trwania boosterow do napisu zwiazanego z punktami i rekordem
                 float t = player.getInvincibleRemainingTime();
                 if (t > 0)tytul += "|[TARCZA:" + std::to_string(t).substr(0, 3) + "s]";
             }
