@@ -362,7 +362,7 @@ int main(int argc, char* argv[]) {
 
             // 2. AKTUALIZACJA TYTUŁU OKNA
             // Sklejamy tekst: Punkty + Rekord
-            std::string tytul = "Traktorzysta | Punkty: " + std::to_string(aktualnePunkty) + " | Rekord: " + std::to_string(rekordZycia);
+            std::string tytul = "Traktorem przez wies | Punkty: " + std::to_string(aktualnePunkty) + " | Rekord: " + std::to_string(rekordZycia);
             if (player.isInvincible()) {//Dodanie czasu trwania boosterow do napisu zwiazanego z punktami i rekordem
                 float t = player.getInvincibleRemainingTime();
                 if (t > 0)tytul += "|[TARCZA:" + std::to_string(t).substr(0, 3) + "s]";
