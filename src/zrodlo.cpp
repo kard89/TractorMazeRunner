@@ -6,7 +6,7 @@
 #include <algorithm>
 #include <map>
 #include <fstream>  // Do obsługi pliku rekord.txt
-#include <string>   // Do zamiany liczb na tekst w tytule okna
+#include <string>    // Do zamiany liczb na tekst w tytule okna
 #include <iomanip>
 
 const int SCREEN_WIDTH = 1120; //Szerokosc okna (16 * 70)
@@ -103,6 +103,7 @@ public://Ustawianie pozycji startowej i predkosci
             speedTimer = now + 5000;
         }
         else if (type == INVINCIBLE) {
+            void setPos(int x, int y) { rect.x = x; rect.y = y; }
             invincible = true;
             invincibleTimer = now + 5000;
         }
@@ -172,6 +173,7 @@ public://Ustawianie pozycji startowej i predkosci
     bool isInvincible() { return invincible; }
     bool isSpeedUp() { return currentSpeed > baseSpeed; }
 };
+
 class Enemy {
 private:
     SDL_Rect rect;
@@ -242,7 +244,6 @@ public:
         frozen = true;
         slowed = false;
         freezeTimer = SDL_GetTicks() + 5000;
-
     }
 
     // Nowa funkcja do spowalniania (Błoto)
@@ -302,14 +303,12 @@ public:
         return(slowTimer - SDL_GetTicks()) / 1000.0f;
     }
 
-
     void draw(SDL_Renderer* renderer) {
         if (frozen) SDL_SetRenderDrawColor(renderer, 0, 255, 255, 255); // Niebieski jeśli zamrożony
         else if (slowed) SDL_SetRenderDrawColor(renderer, 139, 69, 19, 255); // Brązowy jeśli spowolniony (Błoto)
         else SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
         SDL_RenderFillRect(renderer, &rect);
     }
-
 
     bool isFrozen() { return frozen; }
     bool isSlowed() { return slowed; }
@@ -357,78 +356,60 @@ int main(int argc, char* argv[]) {
     SDL_Surface* tempSurface = SDL_LoadBMP("assets\\shield.bmp"); // Wczytujemy plik z assets
     if (!tempSurface) {
         std::cout << "Nie udalo sie wczytac shield.bmp! Blad: " << SDL_GetError() << std::endl;
-        // Kontynuujemy mimo błedu, żeby gra się nie wywaliła - ale tekstura będzie pusta
     }
 
     SDL_Texture* shieldTexture = nullptr;
     if (tempSurface) {
         // 2. USTAWIANIE PRZEZROCZYSTOŚCI (Usuwamy Magentę: 255, 0, 255)
         SDL_SetColorKey(tempSurface, SDL_TRUE, SDL_MapRGB(tempSurface->format, 255, 0, 255));
-
         // 3. TWORZENIE TEKSTURY
         shieldTexture = SDL_CreateTextureFromSurface(renderer, tempSurface);
         SDL_FreeSurface(tempSurface);
     }
 
-    tempSurface = SDL_LoadBMP("assets\\speedF.bmp"); // Wczytujemy plik z assets
+    tempSurface = SDL_LoadBMP("assets\\speedF.bmp");
     if (!tempSurface) {
         std::cout << "Nie udalo sie wczytac speed.bmp! Blad: " << SDL_GetError() << std::endl;
-        // Kontynuujemy mimo błedu, żeby gra się nie wywaliła - ale tekstura będzie pusta
     }
 
     SDL_Texture* speedTexture = nullptr;
     if (tempSurface) {
-        // 2. USTAWIANIE PRZEZROCZYSTOŚCI (Usuwamy Magentę: 255, 0, 255)
         SDL_SetColorKey(tempSurface, SDL_TRUE, SDL_MapRGB(tempSurface->format, 255, 0, 255));
-
-        // 3. TWORZENIE TEKSTURY
         speedTexture = SDL_CreateTextureFromSurface(renderer, tempSurface);
         SDL_FreeSurface(tempSurface);
     }
 
-    tempSurface = SDL_LoadBMP("assets\\slow.bmp"); // Wczytujemy plik z assets
+    tempSurface = SDL_LoadBMP("assets\\slow.bmp");
     if (!tempSurface) {
         std::cout << "Nie udalo sie wczytac slow.bmp! Blad: " << SDL_GetError() << std::endl;
-        // Kontynuujemy mimo błedu, żeby gra się nie wywaliła - ale tekstura będzie pusta
     }
 
     SDL_Texture* slowTexture = nullptr;
     if (tempSurface) {
-        // 2. USTAWIANIE PRZEZROCZYSTOŚCI (Usuwamy Magentę: 255, 0, 255)
         SDL_SetColorKey(tempSurface, SDL_TRUE, SDL_MapRGB(tempSurface->format, 255, 0, 255));
-
-        // 3. TWORZENIE TEKSTURY
         slowTexture = SDL_CreateTextureFromSurface(renderer, tempSurface);
         SDL_FreeSurface(tempSurface);
     }
 
-    tempSurface = SDL_LoadBMP("assets\\freezeF.bmp"); // Wczytujemy plik z assets"
+    tempSurface = SDL_LoadBMP("assets\\freezeF.bmp");
     if (!tempSurface) {
         std::cout << "Nie udalo sie wczytac freeze.bmp! Blad: " << SDL_GetError() << std::endl;
-        // Kontynuujemy mimo błedu, żeby gra się nie wywaliła - ale tekstura będzie pusta
     }
 
     SDL_Texture* freezeTexture = nullptr;
     if (tempSurface) {
-        // 2. USTAWIANIE PRZEZROCZYSTOŚCI (Usuwamy Magentę: 255, 0, 255)
         SDL_SetColorKey(tempSurface, SDL_TRUE, SDL_MapRGB(tempSurface->format, 255, 0, 255));
-
-        // 3. TWORZENIE TEKSTURY
         freezeTexture = SDL_CreateTextureFromSurface(renderer, tempSurface);
         SDL_FreeSurface(tempSurface);
     }
 
-
     //Inicjalizacja obiektow
-    // (Zaktualizowane pozycje startowe na srodek kafelkow 70px)
     Player player(80, 80, 50, 10);
     Enemy enemy(990, 710, 50, 2);
     //Inicjalizacja boosterow
     std::vector<Booster> boosters;
-    // (Zaktualizowane pozycje boosterow dla nowej skali i rozmiar 40x40)
     boosters.push_back({ {225, 85, 40, 40}, SPEED_UP, true });
     boosters.push_back({ {505, 225, 40, 40}, INVINCIBLE, true });
-    // --- ZMIANA: Tu był SHRINK, teraz jest SLOW_ENEMY (błoto) ---
     boosters.push_back({ {85, 715, 40, 40}, SLOW_ENEMY, true });
     boosters.push_back({ {995, 85, 40, 40}, FREEZE, true });
 
@@ -451,10 +432,19 @@ int main(int argc, char* argv[]) {
             //START GRY PO NACISNIECIU SPACJI
             if (menuActive && e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_SPACE) {
                 menuActive = false;
+                // Reset stanu przy startu z menu
+                aktualnyLvl = 0;
+                ladujPoziom(aktualnyLvl, boosters);
+                pozostalePunkty = liczPunkty();
+                aktualnePunkty = 0;
+                player.setPos(80, 80);
+                enemy.setPos(990, 710);
+                gameOver = false;
             }
             //OBSLUGA RUCHU TYLKO GDY UZYTKOWNIK GRA
             if (!gameOver && !menuActive) player.handleInput(e);
         }
+
         if (menuActive) {
             std::string menuTxt = "TRAKTORZYSTA | REKORD: " + std::to_string(rekordZycia) + " | SPACJA - START";
             SDL_SetWindowTitle(window, menuTxt.c_str());
@@ -472,11 +462,9 @@ int main(int argc, char* argv[]) {
             }
         }
         else {
-
-
             if (!gameOver) {
                 // 1. LOGIKA ZBIERANIA PUNKTÓW
-                int pCol = (player.getX() + 25) / TILE_SIZE; // Srodek gracza (50/2 = 25)
+                int pCol = (player.getX() + 25) / TILE_SIZE;
                 int pRow = (player.getY() + 25) / TILE_SIZE;
                 if (maze[pRow][pCol] == 0) {
                     maze[pRow][pCol] = 2; // Oznaczenie jako zebrane
@@ -485,62 +473,60 @@ int main(int argc, char* argv[]) {
 
                     // Sprawdzenie czy wszystkie punkty zebrane
                     if (pozostalePunkty <= 0) {
-                        aktualnyLvl = (aktualnyLvl + 1) % LICZBA_LEVELI;
-                        ladujPoziom(aktualnyLvl, boosters);
-                        pozostalePunkty = liczPunkty();
-                        player.setPos(80, 80);
-                        enemy.setPos(990, 710);
+                        // --- ZMIANA: Przejście do następnego poziomu lub powrót do menu jeśli to koniec ---
+                        if (aktualnyLvl < LICZBA_LEVELI - 1) {
+                            aktualnyLvl++;
+                            ladujPoziom(aktualnyLvl, boosters);
+                            pozostalePunkty = liczPunkty();
+                            player.setPos(80, 80);
+                            enemy.setPos(990, 710);
+                        }
+                        else {
+                            menuActive = true; // Koniec wszystkich poziomów
+                        }
                     }
                 }
 
                 // 2. AKTUALIZACJA TYTUŁU OKNA
-                // Sklejamy tekst: Punkty + Rekord
                 std::string tytul = "Poziom " + std::to_string(aktualnyLvl + 1) + " | Punkty: " + std::to_string(aktualnePunkty) + " | Rekord: " + std::to_string(rekordZycia);
-                if (player.isInvincible()) {//Dodanie czasu trwania boosterow do napisu zwiazanego z punktami i rekordem
+                if (player.isInvincible()) {
                     float t = player.getInvincibleRemainingTime();
-                    if (t > 0)tytul += "|[TARCZA:" + std::to_string(t).substr(0, 3) + "s]";
+                    if (t > 0) tytul += "|[TARCZA:" + std::to_string(t).substr(0, 3) + "s]";
                 }
                 if (player.isSpeedUp()) {
                     float t = player.getSpeedRemainingTime();
-                    if (t > 0)tytul += "|[TURBO:" + std::to_string(t).substr(0, 3) + "s]";
+                    if (t > 0) tytul += "|[TURBO:" + std::to_string(t).substr(0, 3) + "s]";
                 }
                 if (enemy.isFrozen()) {
                     float t = enemy.getFreezeRemainingTime();
-                    if (t > 0)tytul += "|[ZAMROZENIE:" + std::to_string(t).substr(0, 3) + "s]";
+                    if (t > 0) tytul += "|[ZAMROZENIE:" + std::to_string(t).substr(0, 3) + "s]";
                 }
                 if (enemy.isSlowed()) {
                     float t = enemy.getSlowRemainingTime();
-                    if (t > 0)tytul += "|[BLOTO:" + std::to_string(t).substr(0, 3) + "s]";
+                    if (t > 0) tytul += "|[BLOTO:" + std::to_string(t).substr(0, 3) + "s]";
                 }
 
-
                 SDL_SetWindowTitle(window, tytul.c_str());
-
                 player.update();
                 enemy.update(player.getX(), player.getY());
 
-                // Logika zbierania boosterów (TYLKO LOGIKA, bez rysowania!)
                 SDL_Rect pRect = player.getRect();
                 for (auto& b : boosters) {
                     if (b.active && SDL_HasIntersection(&pRect, &b.rect)) {
-                        // Tutaj decydujemy co robi booster
                         if (b.type == FREEZE) enemy.freeze();
                         else if (b.type == SLOW_ENEMY) enemy.slowDown();
-                        else player.applyBooster(b.type); // Tutaj włączamy nieśmiertelność
-
-                        b.active = false; // Usuwamy booster z mapy
+                        else player.applyBooster(b.type);
+                        b.active = false;
                     }
                 }
 
                 // 3. KOLIZJA I ZAPIS REKORDU
-                // Pobieramy prostokąt przeciwnika do sprawdzenia kolizji
                 SDL_Rect eRect = enemy.getRect();
-
-                // Sprawdzamy kolizję gracza z wrogiem (tylko jeśli gracz nie jest nieśmiertelny)
                 if (SDL_HasIntersection(&pRect, &eRect) && !player.isInvincible()) {
                     gameOver = true;
                     if (aktualnePunkty > rekordZycia) {
-                        zapiszRekord(aktualnePunkty);
+                        rekordZycia = aktualnePunkty;
+                        zapiszRekord(rekordZycia);
                     }
                 }
             }
@@ -562,16 +548,12 @@ int main(int argc, char* argv[]) {
                 }
             }
 
-            // ==========================================
-            // 4. RYSOWANIE BOOSTERÓW (Tutaj faktycznie rysujemy)
-            // ==========================================
+            // 4. RYSOWANIE BOOSTERÓW 
             for (auto& b : boosters) {
                 if (b.active) {
-                    // JEŚLI TO TARCZA I MAMY TEKSTURE -> RYSUJEMY OBRAZEK
                     if (b.type == INVINCIBLE && shieldTexture != nullptr) {
                         SDL_RenderCopy(renderer, shieldTexture, NULL, &b.rect);
                     }
-                    // JEŚLI TO INNE BOOSTERY -> RYSUJEMY KWADRATY
                     else if (b.type == SPEED_UP && speedTexture != nullptr) {
                         SDL_RenderCopy(renderer, speedTexture, NULL, &b.rect);
                     }
@@ -583,26 +565,21 @@ int main(int argc, char* argv[]) {
                     }
                     else {
                         if (b.type == SPEED_UP) SDL_SetRenderDrawColor(renderer, 255, 165, 0, 255);
-                        else if (b.type == INVINCIBLE) SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255); // Fallback jeśli tekstura nie działa
-                        else if (b.type == SLOW_ENEMY) SDL_SetRenderDrawColor(renderer, 139, 69, 19, 255); // Brązowy (Błoto)
+                        else if (b.type == INVINCIBLE) SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255);
+                        else if (b.type == SLOW_ENEMY) SDL_SetRenderDrawColor(renderer, 139, 69, 19, 255);
                         else if (b.type == FREEZE) SDL_SetRenderDrawColor(renderer, 0, 255, 255, 255);
-
                         SDL_RenderFillRect(renderer, &b.rect);
                     }
                 }
             }
 
-
             player.draw(renderer);
             enemy.draw(renderer);
             if (gameOver) {
-                // Rysujemy pprzezroczysty czerwony nakad na ekran
                 SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-                SDL_SetRenderDrawColor(renderer, 255, 0, 0, 150); // Czerwony z przezroczystoci
+                SDL_SetRenderDrawColor(renderer, 255, 0, 0, 150);
                 SDL_Rect fullScreen = { 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT };
                 SDL_RenderFillRect(renderer, &fullScreen);
-
-                // Tutaj gra stoi w miejscu, bo update'y s zablokowane przez if(!gameOver)
             }
         }
         SDL_RenderPresent(renderer);
@@ -610,7 +587,7 @@ int main(int argc, char* argv[]) {
     }
 
     // Sprztanie
-    SDL_DestroyTexture(shieldTexture); // Ważne: usuwamy teksturę
+    SDL_DestroyTexture(shieldTexture);
     SDL_DestroyTexture(speedTexture);
     SDL_DestroyTexture(slowTexture);
     SDL_DestroyTexture(freezeTexture);
