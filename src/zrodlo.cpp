@@ -86,6 +86,7 @@ private:
     bool invincible = false;
     Uint32 invincibleTimer = 0;//rozdzielone timery dla boosterow
     Uint32 speedTimer = 0;
+    SDL_Texture* texture = nullptr; // Dodana tekstura gracza
 public://Ustawianie pozycji startowej i predkosci
     Player(int x, int y, int size, int moveSpeed) {
         rect.x = x;
@@ -96,6 +97,7 @@ public://Ustawianie pozycji startowej i predkosci
         currentSpeed = moveSpeed;
     }
     void setPos(int x, int y) { rect.x = x; rect.y = y; }
+    void setTexture(SDL_Texture* tex) { texture = tex; } // Setter tekstury
     void applyBooster(BoosterType type) {
         Uint32 now = SDL_GetTicks();
         if (type == SPEED_UP) {
@@ -153,9 +155,18 @@ public://Ustawianie pozycji startowej i predkosci
         if (rect.y + rect.h > SCREEN_HEIGHT) rect.y = SCREEN_HEIGHT - rect.h;
     }
     void draw(SDL_Renderer* renderer) { //rysowanie gracza w oknie
-        if (invincible) SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255); // Kolor żółty jeśli nieśmiertelny
-        else SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);//ustawienie koloru na bialy
-        SDL_RenderFillRect(renderer, &rect);
+        if (texture) {
+            // Analogiczne zmiany kolorow dla tekstury (Color Mod)
+            if (invincible) SDL_SetTextureColorMod(texture, 255, 255, 0); // Żółty odcień
+            else SDL_SetTextureColorMod(texture, 255, 255, 255); // Normalny
+            SDL_RenderCopy(renderer, texture, NULL, &rect);
+        }
+        else {
+            // Stary kod rysowania kwadratu (backup)
+            if (invincible) SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255); // Kolor żółty jeśli nieśmiertelny
+            else SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);//ustawienie koloru na bialy
+            SDL_RenderFillRect(renderer, &rect);
+        }
     }
     //Osobne funkcje czasow dla boosterow
     float getInvincibleRemainingTime() {
@@ -183,6 +194,7 @@ private:
     bool slowed = false; // Flaga spowolnienia (Błoto)
     Uint32 freezeTimer = 0;
     Uint32 slowTimer = 0;
+    SDL_Texture* texture = nullptr; // Dodana tekstura wroga
     std::vector<SDL_Point> path; // Przechowuje list punktw do przejcia
 
     // Funkcja obliczajca drog (Uproszczony A*)
@@ -239,6 +251,7 @@ public:
         currentSpeed = moveSpeed;
     }
     void setPos(int x, int y) { rect.x = x; rect.y = y; path.clear(); }
+    void setTexture(SDL_Texture* tex) { texture = tex; } // Setter tekstury
     SDL_Rect getRect() { return rect; }
 
     void freeze() {
@@ -305,10 +318,19 @@ public:
     }
 
     void draw(SDL_Renderer* renderer) {
-        if (frozen) SDL_SetRenderDrawColor(renderer, 0, 255, 255, 255); // Niebieski jeśli zamrożony
-        else if (slowed) SDL_SetRenderDrawColor(renderer, 139, 69, 19, 255); // Brązowy jeśli spowolniony (Błoto)
-        else SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
-        SDL_RenderFillRect(renderer, &rect);
+        if (texture) {
+            if (frozen) SDL_SetTextureColorMod(texture, 0, 255, 255); // Niebieski odcień
+            else if (slowed) SDL_SetTextureColorMod(texture, 139, 69, 19); // Brązowy odcień
+            else SDL_SetTextureColorMod(texture, 255, 255, 255); // Normalny
+            SDL_RenderCopy(renderer, texture, NULL, &rect);
+        }
+        else {
+            // Stary kod rysowania (backup)
+            if (frozen) SDL_SetRenderDrawColor(renderer, 0, 255, 255, 255); // Niebieski jeśli zamrożony
+            else if (slowed) SDL_SetRenderDrawColor(renderer, 139, 69, 19, 255); // Brązowy jeśli spowolniony (Błoto)
+            else SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+            SDL_RenderFillRect(renderer, &rect);
+        }
     }
 
     bool isFrozen() { return frozen; }
@@ -377,13 +399,21 @@ int main(int argc, char* argv[]) {
     SDL_Texture* freezeTexture = wczytajTeksture(renderer, "assets\\freezeF.bmp", true);
 
     // Ładowanie tekstur mapy
-    SDL_Texture* wallTexture = wczytajTeksture(renderer, "assets\\tekstura0.bmp");   // Sciana
-    SDL_Texture* cropTexture = wczytajTeksture(renderer, "assets\\tekstura1.bmp");   // Nieskoszone (punkty)
-    SDL_Texture* stubbleTexture = wczytajTeksture(renderer, "assets\\tekstura2.bmp");// Skoszone
+    SDL_Texture* wallTexture = wczytajTeksture(renderer, "assets\\grass2.bmp");    // Sciana
+    SDL_Texture* cropTexture = wczytajTeksture(renderer, "assets\\wheat2.bmp");    // Nieskoszone (punkty)
+    SDL_Texture* stubbleTexture = wczytajTeksture(renderer, "assets\\wheatCut2.bmp");// Skoszone
+
+    // Ładowanie tekstur POSTACI (Player i Enemy) z przezroczystością (true)
+    SDL_Texture* playerTexture = wczytajTeksture(renderer, "assets\\tractor_red.bmp", true);
+    SDL_Texture* enemyTexture = wczytajTeksture(renderer, "assets\\babes11.bmp", true);
 
     //Inicjalizacja obiektow
     Player player(80, 80, 50, 10);
+    player.setTexture(playerTexture); // Przypisanie tekstury graczowi
+
     Enemy enemy(990, 710, 50, 2);
+    enemy.setTexture(enemyTexture); // Przypisanie tekstury wrogowi
+
     //Inicjalizacja boosterow
     std::vector<Booster> boosters;
     boosters.push_back({ {225, 85, 40, 40}, SPEED_UP, true });
@@ -586,6 +616,10 @@ int main(int argc, char* argv[]) {
     SDL_DestroyTexture(wallTexture);
     SDL_DestroyTexture(cropTexture);
     SDL_DestroyTexture(stubbleTexture);
+
+    // Sprzątanie tekstur postaci
+    SDL_DestroyTexture(playerTexture);
+    SDL_DestroyTexture(enemyTexture);
 
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
