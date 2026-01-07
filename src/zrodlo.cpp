@@ -15,6 +15,7 @@ const int SCREEN_HEIGHT = 840; //Wysokosc okna (12 * 70)
 const int TILE_SIZE = 70; // (Powiększone z 50)
 const int MAP_ROWS = 12;
 const int MAP_COLS = 16;
+const int LICZBA_LEVELI = 2; // Liczba dostepnych map
 
 //Struktura Boosterow
 enum BoosterType { SPEED_UP, INVINCIBLE, SLOW_ENEMY, FREEZE, NONE };
@@ -24,20 +25,58 @@ struct Booster {
     bool active;
 };
 
-int maze[MAP_ROWS][MAP_COLS] = {
-    {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}, // 1. Gra (same ciany)
-    {1,0,0,0,1,0,0,0,0,0,0,0,1,0,0,1}, // 2. Przejcie
-    {1,0,1,0,1,0,1,1,1,1,1,0,1,0,1,1}, // 3.
-    {1,0,1,0,0,0,0,0,0,0,1,0,0,0,0,1}, // 4.
-    {1,0,1,1,1,1,1,1,0,1,1,1,1,1,0,1}, // 5.
-    {1,0,0,0,0,0,0,1,0,0,0,0,0,1,0,1}, // 6. rodek
-    {1,1,1,1,1,1,0,1,1,1,1,1,0,1,0,1}, // 7.
-    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1}, // 8.
-    {1,0,1,1,1,1,1,1,1,1,1,1,1,1,0,1}, // 9.
-    {1,0,1,0,0,0,0,0,0,0,0,0,0,1,0,1}, // 10.
-    {1,0,0,0,1,1,1,1,0,1,1,1,0,0,0,1}, // 11.
-    {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}  // 12. D (same ciany)
+// Tablica przechowująca wzory labiryntów
+int mazeLevels[LICZBA_LEVELI][MAP_ROWS][MAP_COLS] = {
+    {
+        {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}, // 1. Gra (same ciany)
+        {1,0,0,0,1,0,0,0,0,0,0,0,1,0,0,1}, // 2. Przejcie
+        {1,0,1,0,1,0,1,1,1,1,1,0,1,0,1,1}, // 3.
+        {1,0,1,0,0,0,0,0,0,0,1,0,0,0,0,1}, // 4.
+        {1,0,1,1,1,1,1,1,0,1,1,1,1,1,0,1}, // 5.
+        {1,0,0,0,0,0,0,1,0,0,0,0,0,1,0,1}, // 6. rodek
+        {1,1,1,1,1,1,0,1,1,1,1,1,0,1,0,1}, // 7.
+        {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1}, // 8.
+        {1,0,1,1,1,1,1,1,1,1,1,1,1,1,0,1}, // 9.
+        {1,0,1,0,0,0,0,0,0,0,0,0,0,1,0,1}, // 10.
+        {1,0,0,0,1,1,1,1,0,1,1,1,0,0,0,1}, // 11.
+        {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}  // 12. D (same ciany)
+    },
+    {
+        {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}, // Nowy labirynt (Poziom 2)
+        {1,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1},
+        {1,0,1,1,0,1,0,0,0,0,1,0,1,1,0,1},
+        {1,0,1,1,0,1,1,0,0,1,1,0,1,1,0,1},
+        {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+        {1,1,0,1,1,1,0,1,1,0,1,1,1,0,1,1},
+        {1,1,0,1,1,1,0,1,1,0,1,1,1,0,1,1},
+        {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+        {1,0,1,1,0,1,1,0,0,1,1,0,1,1,0,1},
+        {1,0,1,1,0,1,0,0,0,0,1,0,1,1,0,1},
+        {1,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1},
+        {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}
+    }
 };
+
+int maze[MAP_ROWS][MAP_COLS]; // Aktualna mapa w grze
+
+// Funkcja do ladowania konkretnego poziomu
+void ladujPoziom(int nr, std::vector<Booster>& bst) {
+    for (int r = 0; r < MAP_ROWS; r++) {
+        for (int c = 0; c < MAP_COLS; c++) {
+            maze[r][c] = mazeLevels[nr][r][c];
+        }
+    }
+    for (auto& b : bst) b.active = true;
+}
+
+// Funkcja liczaca kropki na mapie
+int liczPunkty() {
+    int p = 0;
+    for (int r = 0; r < MAP_ROWS; r++)
+        for (int c = 0; c < MAP_COLS; c++)
+            if (maze[r][c] == 0) p++;
+    return p;
+}
 
 class Player {
 private:
@@ -56,6 +95,7 @@ public://Ustawianie pozycji startowej i predkosci
         baseSpeed = moveSpeed;
         currentSpeed = moveSpeed;
     }
+    void setPos(int x, int y) { rect.x = x; rect.y = y; }
     void applyBooster(BoosterType type) {
         Uint32 now = SDL_GetTicks();
         if (type == SPEED_UP) {
@@ -170,7 +210,7 @@ private:
             int dy[] = { 1, -1, 0, 0 };
             for (int i = 0; i < 4; i++) {
                 int nx = curr.x + dx[i], ny = curr.y + dy[i];
-                if (nx >= 0 && nx < MAP_COLS && ny >= 0 && ny < MAP_ROWS && maze[ny][nx] == 0 && !visited[ny][nx]) {
+                if (nx >= 0 && nx < MAP_COLS && ny >= 0 && ny < MAP_ROWS && (maze[ny][nx] == 0 || maze[ny][nx] == 2) && !visited[ny][nx]) {
                     visited[ny][nx] = true;
                     parentMap[ny * MAP_COLS + nx] = curr;
                     q.push({ nx, ny });
@@ -195,6 +235,7 @@ public:
         baseSpeed = moveSpeed;
         currentSpeed = moveSpeed;
     }
+    void setPos(int x, int y) { rect.x = x; rect.y = y; path.clear(); }
     SDL_Rect getRect() { return rect; }
 
     void freeze() {
@@ -341,14 +382,19 @@ int main(int argc, char* argv[]) {
     // --- ZMIANA: Tu był SHRINK, teraz jest SLOW_ENEMY (błoto) ---
     boosters.push_back({ {85, 715, 40, 40}, SLOW_ENEMY, true });
     boosters.push_back({ {995, 85, 40, 40}, FREEZE, true });
+
+    int aktualnyLvl = 0;
+    ladujPoziom(aktualnyLvl, boosters);
+
     //zmienna sterujaca gra
     bool running = true;
     bool gameOver = false;
     bool menuActive = true;
     SDL_Event e;
     int rekordZycia = wczytajRekord(); // Ładujemy stary rekord na start
-    Uint32 startTime = SDL_GetTicks(); // Zapamiętujemy moment startu
     int aktualnePunkty = 0;
+    int pozostalePunkty = liczPunkty();
+
     while (running) {
         //Wejscie
         while (SDL_PollEvent(&e)) {
@@ -356,7 +402,6 @@ int main(int argc, char* argv[]) {
             //START GRY PO NACISNIECIU SPACJI
             if (menuActive && e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_SPACE) {
                 menuActive = false;
-                startTime = SDL_GetTicks();
             }
             //OBSLUGA RUCHU TYLKO GDY UZYTKOWNIK GRA
             if (!gameOver && !menuActive) player.handleInput(e);
@@ -371,13 +416,27 @@ int main(int argc, char* argv[]) {
 
 
             if (!gameOver) {
-                // 1. OBLICZANIE PUNKTÓW (1000ms = 1 sekunda, razy 10 punktów)
-                Uint32 czasTrwania = SDL_GetTicks() - startTime;
-                aktualnePunkty = (czasTrwania / 1000) * 10;
+                // 1. LOGIKA ZBIERANIA PUNKTÓW
+                int pCol = (player.getX() + 25) / TILE_SIZE; // Srodek gracza (50/2 = 25)
+                int pRow = (player.getY() + 25) / TILE_SIZE;
+                if (maze[pRow][pCol] == 0) {
+                    maze[pRow][pCol] = 2; // Oznaczenie jako zebrane
+                    aktualnePunkty += 10;
+                    pozostalePunkty--;
+
+                    // Sprawdzenie czy wszystkie punkty zebrane
+                    if (pozostalePunkty <= 0) {
+                        aktualnyLvl = (aktualnyLvl + 1) % LICZBA_LEVELI;
+                        ladujPoziom(aktualnyLvl, boosters);
+                        pozostalePunkty = liczPunkty();
+                        player.setPos(80, 80);
+                        enemy.setPos(990, 710);
+                    }
+                }
 
                 // 2. AKTUALIZACJA TYTUŁU OKNA
                 // Sklejamy tekst: Punkty + Rekord
-                std::string tytul = "Traktorem przez wies | Punkty: " + std::to_string(aktualnePunkty) + " | Rekord: " + std::to_string(rekordZycia);
+                std::string tytul = "Poziom " + std::to_string(aktualnyLvl + 1) + " | Punkty: " + std::to_string(aktualnePunkty) + " | Rekord: " + std::to_string(rekordZycia);
                 if (player.isInvincible()) {//Dodanie czasu trwania boosterow do napisu zwiazanego z punktami i rekordem
                     float t = player.getInvincibleRemainingTime();
                     if (t > 0)tytul += "|[TARCZA:" + std::to_string(t).substr(0, 3) + "s]";
@@ -428,13 +487,18 @@ int main(int argc, char* argv[]) {
             }
             SDL_SetRenderDrawColor(renderer, 34, 139, 34, 255);
             SDL_RenderClear(renderer);
-            // Rysowanie cian labiryntu
+            // Rysowanie cian labiryntu i punktow
             for (int r = 0; r < MAP_ROWS; r++) {
                 for (int c = 0; c < MAP_COLS; c++) {
                     if (maze[r][c] == 1) {
                         SDL_Rect wall = { c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, TILE_SIZE };
                         SDL_SetRenderDrawColor(renderer, 210, 180, 140, 255); // Kolor somiany
                         SDL_RenderFillRect(renderer, &wall);
+                    }
+                    else if (maze[r][c] == 0) { // Rysowanie punktu do zebrania
+                        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+                        SDL_Rect dot = { c * TILE_SIZE + 32, r * TILE_SIZE + 32, 6, 6 };
+                        SDL_RenderFillRect(renderer, &dot);
                     }
                 }
             }
