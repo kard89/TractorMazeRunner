@@ -103,7 +103,7 @@ public://Ustawianie pozycji startowej i predkosci
             speedTimer = now + 5000;
         }
         else if (type == INVINCIBLE) {
-            void setPos(int x, int y) { rect.x = x; rect.y = y; }
+            //void setPos(int x, int y) { rect.x = x; rect.y = y; }
             invincible = true;
             invincibleTimer = now + 5000;
         }
