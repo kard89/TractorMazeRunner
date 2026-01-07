@@ -6,7 +6,7 @@
 #include <algorithm>
 #include <map>
 #include <fstream>  // Do obsługi pliku rekord.txt
-#include <string>    // Do zamiany liczb na tekst w tytule okna
+#include <string>   // Do zamiany liczb na tekst w tytule okna
 #include <iomanip>
 
 const int SCREEN_WIDTH = 1120; //Szerokosc okna (16 * 70)
@@ -212,6 +212,7 @@ private:
             int dy[] = { 1, -1, 0, 0 };
             for (int i = 0; i < 4; i++) {
                 int nx = curr.x + dx[i], ny = curr.y + dy[i];
+                // Wrog moze chodzic po nieskoszonym (0) i skoszonym (2)
                 if (nx >= 0 && nx < MAP_COLS && ny >= 0 && ny < MAP_ROWS && (maze[ny][nx] == 0 || maze[ny][nx] == 2) && !visited[ny][nx]) {
                     visited[ny][nx] = true;
                     parentMap[ny * MAP_COLS + nx] = curr;
@@ -332,6 +333,23 @@ void zapiszRekord(int punkty) {
     }
 }
 
+// Funkcja pomocnicza do ładowania tekstur (zachowująca czystość kodu w main)
+SDL_Texture* wczytajTeksture(SDL_Renderer* renderer, const char* path, bool colorKey = false) {
+    SDL_Surface* tempSurface = SDL_LoadBMP(path);
+    if (!tempSurface) {
+        std::cout << "Nie udalo sie wczytac " << path << "! Blad: " << SDL_GetError() << std::endl;
+        return nullptr;
+    }
+    if (colorKey) {
+        // 2. USTAWIANIE PRZEZROCZYSTOŚCI (Usuwamy Magentę: 255, 0, 255)
+        SDL_SetColorKey(tempSurface, SDL_TRUE, SDL_MapRGB(tempSurface->format, 255, 0, 255));
+    }
+    // 3. TWORZENIE TEKSTURY
+    SDL_Texture* tex = SDL_CreateTextureFromSurface(renderer, tempSurface);
+    SDL_FreeSurface(tempSurface);
+    return tex;
+}
+
 int main(int argc, char* argv[]) {
     // Inicjalizacja
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
@@ -351,57 +369,17 @@ int main(int argc, char* argv[]) {
     }
 
     // ==========================================
-    // 1. ŁADOWANIE GRAFIKI TARCZY (Wklejone poprawnie w sekcji init)
+    // 1. ŁADOWANIE GRAFIKI TARCZY (i innych boosterów)
     // ==========================================
-    SDL_Surface* tempSurface = SDL_LoadBMP("assets\\shield.bmp"); // Wczytujemy plik z assets
-    if (!tempSurface) {
-        std::cout << "Nie udalo sie wczytac shield.bmp! Blad: " << SDL_GetError() << std::endl;
-    }
+    SDL_Texture* shieldTexture = wczytajTeksture(renderer, "assets\\shield.bmp", true);
+    SDL_Texture* speedTexture = wczytajTeksture(renderer, "assets\\speedF.bmp", true);
+    SDL_Texture* slowTexture = wczytajTeksture(renderer, "assets\\slow.bmp", true);
+    SDL_Texture* freezeTexture = wczytajTeksture(renderer, "assets\\freezeF.bmp", true);
 
-    SDL_Texture* shieldTexture = nullptr;
-    if (tempSurface) {
-        // 2. USTAWIANIE PRZEZROCZYSTOŚCI (Usuwamy Magentę: 255, 0, 255)
-        SDL_SetColorKey(tempSurface, SDL_TRUE, SDL_MapRGB(tempSurface->format, 255, 0, 255));
-        // 3. TWORZENIE TEKSTURY
-        shieldTexture = SDL_CreateTextureFromSurface(renderer, tempSurface);
-        SDL_FreeSurface(tempSurface);
-    }
-
-    tempSurface = SDL_LoadBMP("assets\\speedF.bmp");
-    if (!tempSurface) {
-        std::cout << "Nie udalo sie wczytac speed.bmp! Blad: " << SDL_GetError() << std::endl;
-    }
-
-    SDL_Texture* speedTexture = nullptr;
-    if (tempSurface) {
-        SDL_SetColorKey(tempSurface, SDL_TRUE, SDL_MapRGB(tempSurface->format, 255, 0, 255));
-        speedTexture = SDL_CreateTextureFromSurface(renderer, tempSurface);
-        SDL_FreeSurface(tempSurface);
-    }
-
-    tempSurface = SDL_LoadBMP("assets\\slow.bmp");
-    if (!tempSurface) {
-        std::cout << "Nie udalo sie wczytac slow.bmp! Blad: " << SDL_GetError() << std::endl;
-    }
-
-    SDL_Texture* slowTexture = nullptr;
-    if (tempSurface) {
-        SDL_SetColorKey(tempSurface, SDL_TRUE, SDL_MapRGB(tempSurface->format, 255, 0, 255));
-        slowTexture = SDL_CreateTextureFromSurface(renderer, tempSurface);
-        SDL_FreeSurface(tempSurface);
-    }
-
-    tempSurface = SDL_LoadBMP("assets\\freezeF.bmp");
-    if (!tempSurface) {
-        std::cout << "Nie udalo sie wczytac freeze.bmp! Blad: " << SDL_GetError() << std::endl;
-    }
-
-    SDL_Texture* freezeTexture = nullptr;
-    if (tempSurface) {
-        SDL_SetColorKey(tempSurface, SDL_TRUE, SDL_MapRGB(tempSurface->format, 255, 0, 255));
-        freezeTexture = SDL_CreateTextureFromSurface(renderer, tempSurface);
-        SDL_FreeSurface(tempSurface);
-    }
+    // Ładowanie tekstur mapy
+    SDL_Texture* wallTexture = wczytajTeksture(renderer, "assets\\tekstura0.bmp");   // Sciana
+    SDL_Texture* cropTexture = wczytajTeksture(renderer, "assets\\tekstura1.bmp");   // Nieskoszone (punkty)
+    SDL_Texture* stubbleTexture = wczytajTeksture(renderer, "assets\\tekstura2.bmp");// Skoszone
 
     //Inicjalizacja obiektow
     Player player(80, 80, 50, 10);
@@ -451,7 +429,7 @@ int main(int argc, char* argv[]) {
             SDL_SetRenderDrawColor(renderer, 20, 100, 20, 255);
             SDL_RenderClear(renderer);
 
-            int sqSize = 60;
+            int sqSize = 250;
             int spacing = (SCREEN_WIDTH - (3 * sqSize)) / 4;
             for (int i = 0; i < 3; i++) {
                 SDL_Rect sq = { spacing + i * (sqSize + spacing), (SCREEN_HEIGHT - sqSize) / 2, sqSize, sqSize };
@@ -466,6 +444,8 @@ int main(int argc, char* argv[]) {
                 // 1. LOGIKA ZBIERANIA PUNKTÓW
                 int pCol = (player.getX() + 25) / TILE_SIZE;
                 int pRow = (player.getY() + 25) / TILE_SIZE;
+
+                // Zbieranie: zamiana zboża (0) na ściernisko (2)
                 if (maze[pRow][pCol] == 0) {
                     maze[pRow][pCol] = 2; // Oznaczenie jako zebrane
                     aktualnePunkty += 10;
@@ -532,37 +512,47 @@ int main(int argc, char* argv[]) {
             }
             SDL_SetRenderDrawColor(renderer, 34, 139, 34, 255);
             SDL_RenderClear(renderer);
+
             // Rysowanie cian labiryntu i punktow
             for (int r = 0; r < MAP_ROWS; r++) {
                 for (int c = 0; c < MAP_COLS; c++) {
+                    SDL_Rect tileRect = { c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, TILE_SIZE };
+
                     if (maze[r][c] == 1) {
-                        SDL_Rect wall = { c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, TILE_SIZE };
-                        SDL_SetRenderDrawColor(renderer, 210, 180, 140, 255); // Kolor somiany
-                        SDL_RenderFillRect(renderer, &wall);
+                        // Jeli to pole jest cian (tekstura0)
+                        if (wallTexture) SDL_RenderCopy(renderer, wallTexture, NULL, &tileRect);
+                        else {
+                            SDL_SetRenderDrawColor(renderer, 210, 180, 140, 255); // Kolor somiany
+                            SDL_RenderFillRect(renderer, &tileRect);
+                        }
                     }
-                    else if (maze[r][c] == 0) { // Rysowanie punktu do zebrania
-                        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-                        SDL_Rect dot = { c * TILE_SIZE + 32, r * TILE_SIZE + 32, 6, 6 };
-                        SDL_RenderFillRect(renderer, &dot);
+                    else if (maze[r][c] == 0) {
+                        // Rysowanie punktu do zebrania (tekstura1 - nieskoszone)
+                        if (cropTexture) SDL_RenderCopy(renderer, cropTexture, NULL, &tileRect);
+                        else {
+                            SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+                            SDL_Rect dot = { c * TILE_SIZE + 32, r * TILE_SIZE + 32, 6, 6 };
+                            SDL_RenderFillRect(renderer, &dot);
+                        }
+                    }
+                    else if (maze[r][c] == 2) {
+                        // Skoszone pole (tekstura2)
+                        if (stubbleTexture) SDL_RenderCopy(renderer, stubbleTexture, NULL, &tileRect);
+                        else {
+                            SDL_SetRenderDrawColor(renderer, 139, 69, 19, 255);
+                            SDL_RenderFillRect(renderer, &tileRect);
+                        }
                     }
                 }
             }
 
-            // 4. RYSOWANIE BOOSTERÓW 
+            // 4. RYSOWANIE BOOSTERÓW
             for (auto& b : boosters) {
                 if (b.active) {
-                    if (b.type == INVINCIBLE && shieldTexture != nullptr) {
-                        SDL_RenderCopy(renderer, shieldTexture, NULL, &b.rect);
-                    }
-                    else if (b.type == SPEED_UP && speedTexture != nullptr) {
-                        SDL_RenderCopy(renderer, speedTexture, NULL, &b.rect);
-                    }
-                    else if (b.type == SLOW_ENEMY && slowTexture != nullptr) {
-                        SDL_RenderCopy(renderer, slowTexture, NULL, &b.rect);
-                    }
-                    else if (b.type == FREEZE && freezeTexture != nullptr) {
-                        SDL_RenderCopy(renderer, freezeTexture, NULL, &b.rect);
-                    }
+                    if (b.type == INVINCIBLE && shieldTexture) SDL_RenderCopy(renderer, shieldTexture, NULL, &b.rect);
+                    else if (b.type == SPEED_UP && speedTexture) SDL_RenderCopy(renderer, speedTexture, NULL, &b.rect);
+                    else if (b.type == SLOW_ENEMY && slowTexture) SDL_RenderCopy(renderer, slowTexture, NULL, &b.rect);
+                    else if (b.type == FREEZE && freezeTexture) SDL_RenderCopy(renderer, freezeTexture, NULL, &b.rect);
                     else {
                         if (b.type == SPEED_UP) SDL_SetRenderDrawColor(renderer, 255, 165, 0, 255);
                         else if (b.type == INVINCIBLE) SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255);
@@ -591,6 +581,12 @@ int main(int argc, char* argv[]) {
     SDL_DestroyTexture(speedTexture);
     SDL_DestroyTexture(slowTexture);
     SDL_DestroyTexture(freezeTexture);
+
+    // Sprzątanie nowych tekstur mapy
+    SDL_DestroyTexture(wallTexture);
+    SDL_DestroyTexture(cropTexture);
+    SDL_DestroyTexture(stubbleTexture);
+
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
