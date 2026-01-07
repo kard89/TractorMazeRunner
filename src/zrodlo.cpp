@@ -456,10 +456,20 @@ int main(int argc, char* argv[]) {
             if (!gameOver && !menuActive) player.handleInput(e);
         }
         if (menuActive) {
-            std::string menuTxt = "TRAKTORZYSTA | REKORD: " + std::to_string(rekordZycia) + " | ABY ROZPOCZAC GRE WCISNIJ SPACJE";
+            std::string menuTxt = "TRAKTORZYSTA | REKORD: " + std::to_string(rekordZycia) + " | SPACJA - START";
             SDL_SetWindowTitle(window, menuTxt.c_str());
             SDL_SetRenderDrawColor(renderer, 20, 100, 20, 255);
             SDL_RenderClear(renderer);
+
+            int sqSize = 60;
+            int spacing = (SCREEN_WIDTH - (3 * sqSize)) / 4;
+            for (int i = 0; i < 3; i++) {
+                SDL_Rect sq = { spacing + i * (sqSize + spacing), (SCREEN_HEIGHT - sqSize) / 2, sqSize, sqSize };
+                if (i == 0) SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+                else if (i == 1) SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255);
+                else SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+                SDL_RenderFillRect(renderer, &sq);
+            }
         }
         else {
 
