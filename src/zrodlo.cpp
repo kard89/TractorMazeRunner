@@ -1,4 +1,4 @@
-﻿﻿#include <SDL.h>
+﻿#include <SDL.h>
 #include <iostream>
 #include <vector>
 #include <queue>
@@ -370,6 +370,55 @@ int main(int argc, char* argv[]) {
         SDL_FreeSurface(tempSurface);
     }
 
+    tempSurface = SDL_LoadBMP("assets\\speedF.bmp"); // Wczytujemy plik z assets
+    if (!tempSurface) {
+        std::cout << "Nie udalo sie wczytac speed.bmp! Blad: " << SDL_GetError() << std::endl;
+        // Kontynuujemy mimo błedu, żeby gra się nie wywaliła - ale tekstura będzie pusta
+    }
+
+    SDL_Texture* speedTexture = nullptr;
+    if (tempSurface) {
+        // 2. USTAWIANIE PRZEZROCZYSTOŚCI (Usuwamy Magentę: 255, 0, 255)
+        SDL_SetColorKey(tempSurface, SDL_TRUE, SDL_MapRGB(tempSurface->format, 255, 0, 255));
+
+        // 3. TWORZENIE TEKSTURY
+        speedTexture = SDL_CreateTextureFromSurface(renderer, tempSurface);
+        SDL_FreeSurface(tempSurface);
+    }
+
+    tempSurface = SDL_LoadBMP("assets\\slow.bmp"); // Wczytujemy plik z assets
+    if (!tempSurface) {
+        std::cout << "Nie udalo sie wczytac slow.bmp! Blad: " << SDL_GetError() << std::endl;
+        // Kontynuujemy mimo błedu, żeby gra się nie wywaliła - ale tekstura będzie pusta
+    }
+
+    SDL_Texture* slowTexture = nullptr;
+    if (tempSurface) {
+        // 2. USTAWIANIE PRZEZROCZYSTOŚCI (Usuwamy Magentę: 255, 0, 255)
+        SDL_SetColorKey(tempSurface, SDL_TRUE, SDL_MapRGB(tempSurface->format, 255, 0, 255));
+
+        // 3. TWORZENIE TEKSTURY
+        slowTexture = SDL_CreateTextureFromSurface(renderer, tempSurface);
+        SDL_FreeSurface(tempSurface);
+    }
+
+    tempSurface = SDL_LoadBMP("assets\\freezeF.bmp"); // Wczytujemy plik z assets"
+    if (!tempSurface) {
+        std::cout << "Nie udalo sie wczytac freeze.bmp! Blad: " << SDL_GetError() << std::endl;
+        // Kontynuujemy mimo błedu, żeby gra się nie wywaliła - ale tekstura będzie pusta
+    }
+
+    SDL_Texture* freezeTexture = nullptr;
+    if (tempSurface) {
+        // 2. USTAWIANIE PRZEZROCZYSTOŚCI (Usuwamy Magentę: 255, 0, 255)
+        SDL_SetColorKey(tempSurface, SDL_TRUE, SDL_MapRGB(tempSurface->format, 255, 0, 255));
+
+        // 3. TWORZENIE TEKSTURY
+        freezeTexture = SDL_CreateTextureFromSurface(renderer, tempSurface);
+        SDL_FreeSurface(tempSurface);
+    }
+
+
     //Inicjalizacja obiektow
     // (Zaktualizowane pozycje startowe na srodek kafelkow 70px)
     Player player(80, 80, 50, 10);
@@ -513,6 +562,15 @@ int main(int argc, char* argv[]) {
                         SDL_RenderCopy(renderer, shieldTexture, NULL, &b.rect);
                     }
                     // JEŚLI TO INNE BOOSTERY -> RYSUJEMY KWADRATY
+                    else if (b.type == SPEED_UP && speedTexture != nullptr) {
+                        SDL_RenderCopy(renderer, speedTexture, NULL, &b.rect);
+                    }
+                    else if (b.type == SLOW_ENEMY && slowTexture != nullptr) {
+                        SDL_RenderCopy(renderer, slowTexture, NULL, &b.rect);
+                    }
+                    else if (b.type == FREEZE && freezeTexture != nullptr) {
+                        SDL_RenderCopy(renderer, freezeTexture, NULL, &b.rect);
+                    }
                     else {
                         if (b.type == SPEED_UP) SDL_SetRenderDrawColor(renderer, 255, 165, 0, 255);
                         else if (b.type == INVINCIBLE) SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255); // Fallback jeśli tekstura nie działa
@@ -523,6 +581,7 @@ int main(int argc, char* argv[]) {
                     }
                 }
             }
+
 
             player.draw(renderer);
             enemy.draw(renderer);
@@ -542,6 +601,9 @@ int main(int argc, char* argv[]) {
 
     // Sprztanie
     SDL_DestroyTexture(shieldTexture); // Ważne: usuwamy teksturę
+    SDL_DestroyTexture(speedTexture);
+    SDL_DestroyTexture(slowTexture);
+    SDL_DestroyTexture(freezeTexture);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
