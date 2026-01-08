@@ -354,6 +354,30 @@ void zapiszRekord(int punkty) {
         plik.close();
     }
 }
+void zapiszPostep(bool odblokowane[], int rozmiar) {
+    std::ofstream plik("postep.txt");
+    if (plik.is_open()) {
+        for (int i = 0; i < rozmiar; i++) {
+            plik << odblokowane[i] << " ";
+        }
+        plik.close();
+    }
+}
+
+void wczytajPostep(bool odblokowane[], int rozmiar) {
+    std::ifstream plik("postep.txt");
+    if (plik.is_open()) {
+        for (int i = 0; i < rozmiar; i++) {
+            plik >> odblokowane[i];
+        }
+        plik.close();
+    }
+    else {
+        // Jeśli plik nie istnieje, ustaw domyślnie tylko 1. poziom
+        odblokowane[0] = true;
+        for (int i = 1; i < rozmiar; i++) odblokowane[i] = false;
+    }
+}
 
 // Funkcja pomocnicza do ładowania tekstur (zachowująca czystość kodu w main)
 SDL_Texture* wczytajTeksture(SDL_Renderer* renderer, const char* path, bool colorKey = false) {
@@ -420,70 +444,84 @@ int main(int argc, char* argv[]) {
     boosters.push_back({ {505, 225, 40, 40}, INVINCIBLE, true });
     boosters.push_back({ {85, 715, 40, 40}, SLOW_ENEMY, true });
     boosters.push_back({ {995, 85, 40, 40}, FREEZE, true });
+    //System Poziomow 
+    bool odblokowaneLevele[3];
+    wczytajPostep(odblokowaneLevele, 3); // WCZYTUJEMY STAN Z PLIKU
+
+    SDL_Rect przyciskiMenu[3];
+    int sqSize = 220;
+    int spacing = (SCREEN_WIDTH - (3 * sqSize)) / 4;
+    for (int i = 0; i < 3; i++) {
+        przyciskiMenu[i] = { spacing + i * (sqSize + spacing), (SCREEN_HEIGHT - sqSize) / 2, sqSize, sqSize };
+    }
 
     int aktualnyLvl = 0;
-    ladujPoziom(aktualnyLvl, boosters);
-
-    //zmienna sterujaca gra
     bool running = true;
     bool gameOver = false;
     bool menuActive = true;
+    int rekordZycia = wczytajRekord();
+    int aktualnePunkty = 0,
+   int pozostalePunkty = 0;
     SDL_Event e;
-    int rekordZycia = wczytajRekord(); // Ładujemy stary rekord na start
-    int aktualnePunkty = 0;
-    int pozostalePunkty = liczPunkty();
-
     while (running) {
         //Wejscie
         while (SDL_PollEvent(&e)) {
             if (e.type == SDL_QUIT) running = false;
             //START GRY PO NACISNIECIU SPACJI
-            if (menuActive && e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_SPACE) {
-                menuActive = false;
-                // Reset stanu przy startu z menu
-                aktualnyLvl = 0;
-                ladujPoziom(aktualnyLvl, boosters);
-                pozostalePunkty = liczPunkty();
-                aktualnePunkty = 0;
-                player.setPos(80, 80);
-                enemy.setPos(990, 710);
-                gameOver = false;
+            if (menuActive && e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) {
+                SDL_Point mousePos = { e.button.x, e.button.y };
+                for (int i = 0; i < 3; i++) {
+                    if (SDL_PointInRect(&mousePos, &przyciskiMenu[i]) && i < LICZBA_LEVELI && odblokowaneLevele[i]) {
+                        aktualnyLvl = i; menuActive = false;
+                        ladujPoziom(aktualnyLvl, boosters);
+                        pozostalePunkty = liczPunkty();
+                        aktualnePunkty = 0; player.setPos(80, 80); enemy.setPos(990, 710); gameOver = false;
+                    }
+                }
             }
-            //OBSLUGA RUCHU TYLKO GDY UZYTKOWNIK GRA
             if (!gameOver && !menuActive) player.handleInput(e);
         }
 
         if (menuActive) {
-            std::string menuTxt = "TRAKTORZYSTA | REKORD: " + std::to_string(rekordZycia) + " | SPACJA - START";
+            std::string menuTxt = "TRAKTORZYSTA | REKORD: " + std::to_string(rekordZycia) + " | WYBIERZ POZIOM";
             SDL_SetWindowTitle(window, menuTxt.c_str());
             SDL_SetRenderDrawColor(renderer, 20, 100, 20, 255);
             SDL_RenderClear(renderer);
 
-            int sqSize = 250;
-            int spacing = (SCREEN_WIDTH - (3 * sqSize)) / 4;
             for (int i = 0; i < 3; i++) {
-                SDL_Rect sq = { spacing + i * (sqSize + spacing), (SCREEN_HEIGHT - sqSize) / 2, sqSize, sqSize };
-                if (i == 0) SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-                else if (i == 1) SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255);
-                else SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
-                SDL_RenderFillRect(renderer, &sq);
+                // Jeśli poziom jest odblokowany - kolor jasny, jeśli zablokowany - ciemnoszary
+                if (odblokowaneLevele[i]) {
+                    if (i == 0) SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255); // Poziom 1 (Biały)
+                    else if (i == 1) SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255); // Poziom 2 (Żółty)
+                    else SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255); // Poziom 3 (Czerwony)
+                }
+                else {
+                    SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255); // ZABLOKOWANY (Szary)
+                }
+                SDL_RenderFillRect(renderer, &przyciskiMenu[i]);
             }
         }
         else {
             if (!gameOver) {
-                // 1. LOGIKA ZBIERANIA PUNKTÓW
                 int pCol = (player.getX() + 25) / TILE_SIZE;
                 int pRow = (player.getY() + 25) / TILE_SIZE;
 
-                // Zbieranie: zamiana zboża (0) na ściernisko (2)
                 if (maze[pRow][pCol] == 0) {
-                    maze[pRow][pCol] = 2; // Oznaczenie jako zebrane
+                    maze[pRow][pCol] = 2;
                     aktualnePunkty += 10;
                     pozostalePunkty--;
 
-                    // Sprawdzenie czy wszystkie punkty zebrane
                     if (pozostalePunkty <= 0) {
-                        // --- ZMIANA: Przejście do następnego poziomu lub powrót do menu jeśli to koniec ---
+                        // LOGIKA ODBLOKOWYWANIA
+                        if (aktualnyLvl + 1 < 3) { // 3 to rozmiar Twojej tablicy odblokowaneLevele
+                            if (!odblokowaneLevele[aktualnyLvl + 1]) {
+                                odblokowaneLevele[aktualnyLvl + 1] = true;
+                                zapiszPostep(odblokowaneLevele, 3);
+                                std::cout << "Odblokowano poziom: " << aktualnyLvl + 2 << std::endl;
+                            }
+                        }
+
+                        // Przejście do następnego poziomu lub powrót do menu
                         if (aktualnyLvl < LICZBA_LEVELI - 1) {
                             aktualnyLvl++;
                             ladujPoziom(aktualnyLvl, boosters);
@@ -492,7 +530,7 @@ int main(int argc, char* argv[]) {
                             enemy.setPos(990, 710);
                         }
                         else {
-                            menuActive = true; // Koniec wszystkich poziomów
+                            menuActive = true; // Koniec gry - powrót do menu
                         }
                     }
                 }
