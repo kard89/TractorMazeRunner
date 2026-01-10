@@ -157,8 +157,7 @@ public://Ustawianie pozycji startowej i predkosci
     void draw(SDL_Renderer* renderer) { //rysowanie gracza w oknie
         if (texture) {
             // Analogiczne zmiany kolorow dla tekstury (Color Mod)
-            if (invincible) SDL_SetTextureColorMod(texture, 255, 255, 0); // Żółty odcień
-            else SDL_SetTextureColorMod(texture, 255, 255, 255); // Normalny
+            SDL_SetTextureColorMod(texture, 255, 255, 255); // Normalny
             SDL_RenderCopy(renderer, texture, NULL, &rect);
         }
         else {
@@ -183,6 +182,14 @@ public://Ustawianie pozycji startowej i predkosci
     SDL_Rect getRect() { return rect; }
     bool isInvincible() { return invincible; }
     bool isSpeedUp() { return currentSpeed > baseSpeed; }
+
+    void resetBoosters() {
+        currentSpeed = baseSpeed;
+        invincible = false;
+        invincibleTimer = 0;
+        speedTimer = 0;
+       
+    }
 };
 
 class Enemy {
@@ -319,9 +326,7 @@ public:
 
     void draw(SDL_Renderer* renderer) {
         if (texture) {
-            if (frozen) SDL_SetTextureColorMod(texture, 0, 255, 255); // Niebieski odcień
-            else if (slowed) SDL_SetTextureColorMod(texture, 139, 69, 19); // Brązowy odcień
-            else SDL_SetTextureColorMod(texture, 255, 255, 255); // Normalny
+            SDL_SetTextureColorMod(texture, 255, 255, 255); // Normalny
             SDL_RenderCopy(renderer, texture, NULL, &rect);
         }
         else {
@@ -335,6 +340,15 @@ public:
 
     bool isFrozen() { return frozen; }
     bool isSlowed() { return slowed; }
+
+    void resetStatus(){
+        frozen = false;
+        slowed = false;
+        freezeTimer = 0;
+        slowTimer = 0;
+        currentSpeed = baseSpeed;
+        path.clear();
+    }
 };
 
 int wczytajRekord() {
@@ -476,6 +490,8 @@ int main(int argc, char* argv[]) {
                         ladujPoziom(aktualnyLvl, boosters);
                         pozostalePunkty = liczPunkty();
                         aktualnePunkty = 0; player.setPos(80, 80); enemy.setPos(990, 710); gameOver = false;
+                        player.resetBoosters();
+                        enemy.resetStatus();
                     }
                 }
             }
@@ -528,6 +544,8 @@ int main(int argc, char* argv[]) {
                             pozostalePunkty = liczPunkty();
                             player.setPos(80, 80);
                             enemy.setPos(990, 710);
+                            player.resetBoosters();
+                            enemy.resetStatus();
                         }
                         else {
                             menuActive = true; // Koniec gry - powrót do menu
