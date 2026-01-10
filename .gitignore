@@ -41,3 +41,15 @@ obj/
 # --- Systemowe ---
 Thumbs.db
 .DS_Store
+# --- WYJĄTKI DLA SDL2 (Naprawa brakujących bibliotek) ---
+
+# 1. Odblokuj folder lib wewnątrz SDL2
+!dependencies/SDL2/lib/
+
+# 2. Odblokuj podfoldery architektur (nadpisuje blokadę x64/ i x86/)
+!dependencies/SDL2/lib/x64/
+!dependencies/SDL2/lib/x86/
+
+# 3. KLUCZOWE: Odblokuj pliki .lib w tych folderach (nadpisuje blokadę *.lib)
+!dependencies/SDL2/lib/x64/*.lib
+!dependencies/SDL2/lib/x86/*.lib
