@@ -37,6 +37,7 @@ obj/
 # ALE chcemy zachować tę jedną główną SDL2.dll w folderze głównym.
 *.dll
 !SDL2.dll
+!SDL2_ttf.dll
 
 # --- Systemowe ---
 Thumbs.db

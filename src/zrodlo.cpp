@@ -8,6 +8,7 @@
 #include <fstream>  // Do obsługi pliku rekord.txt
 #include <string>   // Do zamiany liczb na tekst w tytule okna
 #include <iomanip>
+#include <SDL_ttf.h>
 
 const int SCREEN_WIDTH = 1120; //Szerokosc okna (16 * 70)
 const int SCREEN_HEIGHT = 840; //Wysokosc okna (12 * 70)
@@ -427,7 +428,31 @@ int main(int argc, char* argv[]) {
         std::cout << "Window Error: " << SDL_GetError() << std::endl;
         return -1;
     }
+    // 1. INICJALIZACJA (przed pętlą while)
+    if (TTF_Init() == -1) {
+        printf("Błąd TTF_Init: %s\n", TTF_GetError());
+        return 1;
+    }
 
+    // 2. ŁADOWANIE CZCIONKI
+    // Upewnij się, że plik "arial.ttf" jest w folderze z plikiem .exe!
+    // 24 to rozmiar czcionki
+    TTF_Font* font = TTF_OpenFont("assets\\arial.ttf", 24);
+    if (!font) {
+        printf("Błąd ładowania czcionki: %s\n", TTF_GetError());
+        // Nie returnujemy tutaj, żeby zobaczyć chociaż czarne okno, ale w normalnej grze to błąd krytyczny
+    }
+    // 3. PRZYGOTOWANIE TEKSTU (Tworzymy teksturę raz, przed pętlą)
+    SDL_Color color = { 255, 0, 0 }; // Czerwony kolor (R, G, B)
+    SDL_Surface* surface = TTF_RenderText_Solid(font, "SDL_ttf dziala!", color);
+    SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+
+    // Sprzątamy surface, bo już mamy teksturę w GPU
+    SDL_FreeSurface(surface);
+    int texW = 0;
+    int texH = 0;
+    SDL_QueryTexture(texture, NULL, NULL, &texW, &texH);
+    SDL_Rect dstRect = { 50, 50, texW, texH }; // Pozycja x=50, y=50
     // ==========================================
     // 1. ŁADOWANIE GRAFIKI TARCZY (i innych boosterów)
     // ==========================================
@@ -651,6 +676,10 @@ int main(int argc, char* argv[]) {
 
             player.draw(renderer);
             enemy.draw(renderer);
+            // Rysowanie napisu testowego "SDL_ttf dziala!"
+            if (texture) {
+                SDL_RenderCopy(renderer, texture, NULL, &dstRect);
+            }
             if (gameOver) {
                 SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
                 SDL_SetRenderDrawColor(renderer, 255, 0, 0, 150);
@@ -676,7 +705,9 @@ int main(int argc, char* argv[]) {
     // Sprzątanie tekstur postaci
     SDL_DestroyTexture(playerTexture);
     SDL_DestroyTexture(enemyTexture);
-
+    SDL_DestroyTexture(texture); // Usuń teksturę napisu testowego
+    TTF_CloseFont(font);         // Zamknij czcionkę
+    TTF_Quit();                  // Wyłącz system czcionek
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
