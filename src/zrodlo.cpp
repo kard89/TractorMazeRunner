@@ -183,6 +183,14 @@ public://Ustawianie pozycji startowej i predkosci
     SDL_Rect getRect() { return rect; }
     bool isInvincible() { return invincible; }
     bool isSpeedUp() { return currentSpeed > baseSpeed; }
+
+    void resetBoosters() {
+        currentSpeed = baseSpeed;
+        invincible = false;
+        invincibleTimer = 0;
+        speedTimer = 0;
+       
+    }
 };
 
 class Enemy {
@@ -335,6 +343,15 @@ public:
 
     bool isFrozen() { return frozen; }
     bool isSlowed() { return slowed; }
+
+    void resetStatus(){
+        frozen = false;
+        slowed = false;
+        freezeTimer = 0;
+        slowTimer = 0;
+        currentSpeed = baseSpeed;
+        path.clear();
+    }
 };
 
 int wczytajRekord() {
@@ -476,6 +493,8 @@ int main(int argc, char* argv[]) {
                         ladujPoziom(aktualnyLvl, boosters);
                         pozostalePunkty = liczPunkty();
                         aktualnePunkty = 0; player.setPos(80, 80); enemy.setPos(990, 710); gameOver = false;
+                        player.resetBoosters();
+                        enemy.resetStatus();
                     }
                 }
             }
@@ -528,6 +547,8 @@ int main(int argc, char* argv[]) {
                             pozostalePunkty = liczPunkty();
                             player.setPos(80, 80);
                             enemy.setPos(990, 710);
+                            player.resetBoosters();
+                            enemy.resetStatus();
                         }
                         else {
                             menuActive = true; // Koniec gry - powrót do menu
