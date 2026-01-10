@@ -460,7 +460,7 @@ int main(int argc, char* argv[]) {
     bool gameOver = false;
     bool menuActive = true;
     int rekordZycia = wczytajRekord();
-    int aktualnePunkty = 0,
+    int aktualnePunkty = 0;
    int pozostalePunkty = 0;
     SDL_Event e;
     while (running) {
