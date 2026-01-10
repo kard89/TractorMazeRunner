@@ -157,8 +157,7 @@ public://Ustawianie pozycji startowej i predkosci
     void draw(SDL_Renderer* renderer) { //rysowanie gracza w oknie
         if (texture) {
             // Analogiczne zmiany kolorow dla tekstury (Color Mod)
-            if (invincible) SDL_SetTextureColorMod(texture, 255, 255, 0); // Żółty odcień
-            else SDL_SetTextureColorMod(texture, 255, 255, 255); // Normalny
+            SDL_SetTextureColorMod(texture, 255, 255, 255); // Normalny
             SDL_RenderCopy(renderer, texture, NULL, &rect);
         }
         else {
@@ -327,9 +326,7 @@ public:
 
     void draw(SDL_Renderer* renderer) {
         if (texture) {
-            if (frozen) SDL_SetTextureColorMod(texture, 0, 255, 255); // Niebieski odcień
-            else if (slowed) SDL_SetTextureColorMod(texture, 139, 69, 19); // Brązowy odcień
-            else SDL_SetTextureColorMod(texture, 255, 255, 255); // Normalny
+            SDL_SetTextureColorMod(texture, 255, 255, 255); // Normalny
             SDL_RenderCopy(renderer, texture, NULL, &rect);
         }
         else {
