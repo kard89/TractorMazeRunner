@@ -47,10 +47,14 @@ Thumbs.db
 # 1. Odblokuj folder lib wewnątrz SDL2
 !dependencies/SDL2/lib/
 
-# 2. Odblokuj podfoldery architektur (nadpisuje blokadę x64/ i x86/)
+# 2. Odblokuj podfoldery architektur
 !dependencies/SDL2/lib/x64/
 !dependencies/SDL2/lib/x86/
 
-# 3. KLUCZOWE: Odblokuj pliki .lib w tych folderach (nadpisuje blokadę *.lib)
+# 3. KLUCZOWE: Odblokuj pliki .lib ORAZ .dll w tych folderach
 !dependencies/SDL2/lib/x64/*.lib
 !dependencies/SDL2/lib/x86/*.lib
+
+# --- DODAJ TE LINIE ---
+!dependencies/SDL2/lib/x64/*.dll
+!dependencies/SDL2/lib/x86/*.dll
