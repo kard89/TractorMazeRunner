@@ -1015,47 +1015,188 @@ int main(int argc, char* argv[]) {
                 }
 
                 if (pozostalePunkty <= 0) {
-                    // LOGIKA ODBLOKOWYWANIA
-                    if (aktualnyLvl + 1 < 3) { // 3 to rozmiar Twojej tablicy odblokowaneLevele
+                    // 1. LOGIKA ODBLOKOWYWANIA I ZAPISU
+                    if (aktualnyLvl + 1 < LICZBA_LEVELI) {
                         if (!odblokowaneLevele[aktualnyLvl + 1]) {
                             odblokowaneLevele[aktualnyLvl + 1] = true;
-                            zapiszPostep(odblokowaneLevele, 3);
+                            zapiszPostep(odblokowaneLevele, 3); // Zapis do pliku
                         }
                     }
-                    // Przejście do następnego poziomu lub powrót do menu
-                    if (aktualnyLvl < LICZBA_LEVELI - 1 && aktualnyLvl != 2) {
-                        // Uproszczone przejście do menu po każdym levelu, by nie kopiować całego bloku inicjalizacji
-                        menuActive = true;
-                        SDL_StartTextInput();
-                        // (Tutaj był kod ładowania następnego poziomu, skrócono dla czytelności ale logika gry zachowana)
+
+                    // 2. SPRAWDZENIE CZY ISTNIEJE KOLEJNY POZIOM
+                    if (aktualnyLvl < LICZBA_LEVELI - 1) {
+                        // PRZECHODZIMY DO NASTĘPNEGO POZIOMU (BEZ WYCHODZENIA DO MENU)
+                        aktualnyLvl++;
+
+                        // --- RESETOWANIE STANU GRY (KOD INICJALIZACYJNY) ---
+                        boosters.clear();
+                        enemies.clear();
+                        hayBales.clear();
+                        crowns.clear();
+
+                        // Konfiguracja nowego levelu
+                        if (aktualnyLvl == 2) {
+                            // --- KONFIGURACJA BOSS LEVELU ---
+                            // Czyścimy mapę (wszystko skoszone)
+                            for (int r = 1; r < MAP_ROWS - 1; r++) {
+                                for (int c = 1; c < MAP_COLS - 1; c++) {
+                                    maze[r][c] = 0; // Tymczasowo 0
+                                }
+                            }
+                            ladujPoziom(aktualnyLvl, boosters);
+                            // Nadpisanie mapy na skoszone (tło):
+                            for (int r = 1; r < MAP_ROWS - 1; r++) {
+                                for (int c = 1; c < MAP_COLS - 1; c++) {
+                                    if (maze[r][c] != 1) maze[r][c] = 2;
+                                }
+                            }
+
+                            // Boss Sołtys
+                            Enemy boss(SCREEN_WIDTH / 2 - 30, SCREEN_HEIGHT / 2 - 30, 60, 1);
+                            boss.setTexture(bossTexture);
+                            boss.setSpeed(1);
+                            enemies.push_back(boss);
+
+                            // Generowanie koron
+                            int crownsToSpawn = 15;
+                            while (crownsToSpawn > 0) {
+                                int rCol = (rand() % (MAP_COLS - 2)) + 1;
+                                int rRow = (rand() % (MAP_ROWS - 2)) + 1;
+                                if (maze[rRow][rCol] == 1) continue;
+
+                                int cx = rCol * TILE_SIZE + 10;
+                                int cy = rRow * TILE_SIZE + 10;
+                                SDL_Rect tempRect = { cx, cy, 50, 50 };
+                                SDL_Rect bossRect = boss.getRect();
+
+                                bool collision = false;
+                                if (SDL_HasIntersection(&tempRect, &bossRect)) collision = true;
+                                for (const auto& existingCrown : crowns) {
+                                    if (SDL_HasIntersection(&tempRect, &existingCrown.rect)) {
+                                        collision = true;
+                                        break;
+                                    }
+                                }
+
+                                if (!collision) {
+                                    crowns.push_back({ tempRect, true });
+                                    crownsToSpawn--;
+                                }
+                            }
+                            pozostalePunkty = 15;
+                        }
+                        else {
+                            // --- STANDARDOWE LEVELE (1 i 2) ---
+                            std::vector<BoosterType> types = { SPEED_UP, INVINCIBLE, SLOW_ENEMY, FREEZE };
+                            std::random_device rd;
+                            std::mt19937 g(rd());
+                            std::shuffle(types.begin(), types.end(), g);
+
+                            for (int k = 0; k < 4; k++) {
+                                boosters.push_back({ boosterPositions[k], types[k], true });
+                            }
+
+                            // Tworzenie 3 wrogów
+                            int spawnX[] = { 990, 80, 990 };
+                            int spawnY[] = { 80, 710, 710 };
+
+                            for (int k = 0; k < 3; k++) {
+                                Enemy newEnemy(spawnX[k], spawnY[k], 50, 1);
+                                newEnemy.setTexture(enemyTextures[aktualnyLvl][k]);
+                                enemies.push_back(newEnemy);
+                            }
+
+                            ladujPoziom(aktualnyLvl, boosters);
+                            pozostalePunkty = liczPunkty();
+                        }
+
+                        // Reset gracza
+                        aktualnePunkty = 0; // Opcjonalnie: można nie zerować, jeśli chcesz sumować punkty z całej gry
+                        player.setPos(80, 80);
+                        player.resetBoosters();
+
+                        // Czekamy chwilę, żeby gracz zauważył zmianę (opcjonalne)
+                        SDL_Delay(500);
                     }
                     else {
-                        menuActive = true; // Koniec gry - powrót do menu
+                        // KONIEC GRY (POKONANO BOSSA) -> WRÓĆ DO MENU
+                        menuActive = true;
                         SDL_StartTextInput();
+                        // Resetujemy wygrany level bossa, żeby można było zagrać ponownie
+                        player.resetBoosters();
                     }
                 }
 
                 // 2. AKTUALIZACJA
                 player.update();
 
-                // BOSS LEVEL LOGIKA
+                // BOSS LEVEL LOGIKA - ZBALANSOWANA (Bez zmiany kolorów)
                 if (aktualnyLvl == 2) {
+                    // --- USTAWIENIA TRUDNOŚCI ---
+                    int currentSpawnRate = 1200; // Start: Siano co 1.2 sekundy (wolno)
+                    int bossSpeed = 1;           // Start: Boss wolny
+
+                    if (!enemies.empty()) {
+                        if (pozostalePunkty <= 5) {
+                            // KOŃCÓWKA: Trochę szybciej, ale bez przesady
+                            currentSpawnRate = 600; // Co 0.6 sekundy (było 0.3s)
+                            bossSpeed = 2;          // Boss przyspiesza do 2 (było 3)
+                        }
+                        else if (pozostalePunkty <= 10) {
+                            // ŚRODEK: Lekkie przyspieszenie siana
+                            currentSpawnRate = 900; // Co 0.9 sekundy
+                            bossSpeed = 1;          // Boss nadal wolny
+                        }
+                        else {
+                            // POCZĄTEK
+                            currentSpawnRate = 1200;
+                            bossSpeed = 1;
+                        }
+
+                        // Aplikujemy prędkość bossa
+                        enemies[0].setSpeed(bossSpeed);
+                    }
+
+                    // --- GENEROWANIE SIANA ---
                     if (SDL_GetTicks() > haySpawnTimer) {
                         HayBale bale;
+                        // Losowa pozycja X (z marginesem od krawędzi)
                         bale.rect = { (rand() % (MAP_COLS - 2) + 1) * TILE_SIZE, -50, 50, 50 };
                         bale.y = -50;
-                        bale.speed = (rand() % 3) + 2;
+
+                        // Prędkość spadania siana:
+                        // Na końcu (<=5 pkt) losuje od 3 do 5
+                        // Normalnie losuje od 2 do 4
+                        int baseHaySpeed = (pozostalePunkty <= 5) ? 3 : 2;
+                        bale.speed = (rand() % 3) + baseHaySpeed;
+
                         hayBales.push_back(bale);
-                        haySpawnTimer = SDL_GetTicks() + 800;
+
+                        // Ustawienie timera na następną belę
+                        haySpawnTimer = SDL_GetTicks() + currentSpawnRate;
                     }
+
+                    // --- OBSŁUGA RUCHU I KOLIZJI SIANA ---
                     for (size_t i = 0; i < hayBales.size(); ) {
                         hayBales[i].y += hayBales[i].speed;
                         hayBales[i].rect.y = (int)hayBales[i].y;
+
                         SDL_Rect pRect = player.getRect();
-                        SDL_Rect hitBox = { pRect.x + 10, pRect.y + 10, pRect.w - 20, pRect.h - 20 };
-                        if (SDL_HasIntersection(&hitBox, &hayBales[i].rect) && !player.isInvincible()) gameOver = true;
-                        if (hayBales[i].rect.y > SCREEN_HEIGHT) hayBales.erase(hayBales.begin() + i);
-                        else i++;
+                        // Mniejszy hitbox dla gracza (łatwiej unikać)
+                        SDL_Rect hitBox = { pRect.x + 15, pRect.y + 15, pRect.w - 30, pRect.h - 30 };
+
+                        // Sprawdzenie kolizji
+                        if (SDL_HasIntersection(&hitBox, &hayBales[i].rect) && !player.isInvincible()) {
+                            gameOver = true;
+                        }
+
+                        // Usuwanie siana, które wyleciało za ekran
+                        if (hayBales[i].rect.y > SCREEN_HEIGHT) {
+                            hayBales.erase(hayBales.begin() + i);
+                        }
+                        else {
+                            i++;
+                        }
                     }
                 }
 
@@ -1178,6 +1319,30 @@ int main(int argc, char* argv[]) {
             SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
 
             rysujTekst(renderer, fontUI, hudTop, 10, 10, { 255, 255, 255 });
+
+            // --- NOWOŚĆ: INSTRUKCJA PRAWA GÓRA ---
+            std::string instrText;
+            if (aktualnyLvl == 2) {
+                instrText = "Zbierz wszystkie korony i nie daj sie zlapac!";
+            }
+            else {
+                instrText = "Zbierz cala pszenice i nie daj sie zlapac!";
+            }
+
+            // Obliczamy szerokość tekstu, aby wyrównać do prawej
+            int iW, iH;
+            TTF_SizeText(fontUI, instrText.c_str(), &iW, &iH);
+            int instrX = SCREEN_WIDTH - iW - 15; // 15px marginesu od prawej
+
+            // Tło pod instrukcją (szare, półprzezroczyste)
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+            SDL_SetRenderDrawColor(renderer, 0, 0, 0, 150);
+            SDL_Rect instrBgRect = { instrX - 5, 5, iW + 10, 30 };
+            SDL_RenderFillRect(renderer, &instrBgRect);
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+
+            // Rysowanie tekstu
+            rysujTekst(renderer, fontUI, instrText, instrX, 10, { 255, 255, 255 }); // Lekko szary tekst
 
             // 2. Aktywny Booster (Dół-Lewo)
             std::string boosterText = "";
