@@ -32,6 +32,14 @@ struct Crown {
 };
 // -------------------------------------------
 
+// --- NOWA STRUKTURA DO WYBORU KOLORU (DODANE DLA MENU) ---
+struct TractorOption {
+    std::string filename;
+    SDL_Color colorRGB; // Kolor przycisku w menu
+    SDL_Texture* texture;
+};
+// ---------------------------------------------------------
+
 //Struktura Boosterow
 enum BoosterType { SPEED_UP, INVINCIBLE, SLOW_ENEMY, FREEZE, NONE };
 struct Booster {
@@ -45,13 +53,13 @@ int mazeLevels[LICZBA_LEVELI][MAP_ROWS][MAP_COLS] = {
     {
         {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}, // 1. Gra (same ciany)
         {1,0,0,0,1,0,0,0,0,0,0,0,1,0,0,1}, // 2. Przejcie
-        {1,0,1,0,1,0,1,1,1,1,1,0,1,0,1,1}, // 3.
-        {1,0,1,0,0,0,0,0,0,0,1,0,0,0,0,1}, // 4.
-        {1,0,1,1,1,1,1,1,0,1,1,1,1,1,0,1}, // 5.
+        {1,0,1,0,1,0,1,1,0,1,1,0,1,0,1,1}, // 3.
+        {1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1}, // 4.
+        {1,0,1,1,1,0,1,1,0,1,1,1,1,1,0,1}, // 5.
         {1,0,0,0,0,0,0,1,0,0,0,0,0,1,0,1}, // 6. rodek
-        {1,1,1,1,1,1,0,1,1,1,1,1,0,1,0,1}, // 7.
+        {1,1,1,1,1,1,0,1,1,1,1,1,0,0,0,1}, // 7.
         {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1}, // 8.
-        {1,0,1,1,1,1,1,1,1,1,1,1,1,1,0,1}, // 9.
+        {1,0,1,0,1,1,0,1,1,1,1,0,1,1,0,1}, // 9.
         {1,0,1,0,0,0,0,0,0,0,0,0,0,1,0,1}, // 10.
         {1,0,0,0,1,1,1,1,0,1,1,1,0,0,0,1}, // 11.
         {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}  // 12. D (same ciany)
@@ -574,8 +582,28 @@ int main(int argc, char* argv[]) {
     SDL_Texture* bossTexture = wczytajTeksture(renderer, "assets\\soltys.bmp", true);
     SDL_Texture* crownTexture = wczytajTeksture(renderer, "assets\\crown.bmp", true);
 
+    // --- NOWY SYSTEM WYBORU KOLORU TRAKTORA ---
+    std::vector<TractorOption> tractorOptions;
+    // Definicja 8 kolorów (Blue, Cyan, Green, Orange, Pink, Purple, Red, Yellow)
+    tractorOptions.push_back({ "assets\\tractor_blue.bmp",   {0, 0, 255, 255},    nullptr });
+    tractorOptions.push_back({ "assets\\tractor_cyan.bmp",   {0, 255, 255, 255},  nullptr });
+    tractorOptions.push_back({ "assets\\tractor_green.bmp",  {0, 255, 0, 255},    nullptr });
+    tractorOptions.push_back({ "assets\\tractor_orange.bmp", {255, 165, 0, 255},  nullptr });
+    tractorOptions.push_back({ "assets\\tractor_pink.bmp",   {255, 105, 180, 255},nullptr });
+    tractorOptions.push_back({ "assets\\tractor_purple.bmp", {128, 0, 128, 255},  nullptr });
+    tractorOptions.push_back({ "assets\\tractor_red.bmp",    {255, 0, 0, 255},    nullptr }); // Domyślny
+    tractorOptions.push_back({ "assets\\tractor_yellow.bmp", {255, 255, 0, 255},  nullptr });
+
+    // Wczytanie tekstur dla wszystkich kolorów
+    for (auto& opt : tractorOptions) {
+        opt.texture = wczytajTeksture(renderer, opt.filename.c_str(), true);
+    }
+    int selectedColorIndex = 6; // Domyślnie Red (indeks 6 w wektorze)
+
     // Ładowanie tekstur POSTACI (Player i Enemy) z przezroczystością (true)
-    SDL_Texture* playerTexture = wczytajTeksture(renderer, "assets\\tractor_red.bmp", true);
+    //SDL_Texture* playerTexture = wczytajTeksture(renderer, "assets\\tractor_red.bmp", true);
+    // ^ ZASTĄPIONE PRZEZ WYBÓR Z tractorOptions
+
     //SDL_Texture* enemyTexture = wczytajTeksture(renderer, "assets\\babes11.bmp", true);
     // Level 0 (Gra 1): babes11, babes12, babes13
     // Level 1 (Gra 2): babes21, babes22, babes23
@@ -603,7 +631,7 @@ int main(int argc, char* argv[]) {
 
     //Inicjalizacja obiektow
     Player player(80, 80, 50, 10);
-    player.setTexture(playerTexture); // Przypisanie tekstury graczowi
+    // player.setTexture(playerTexture); // Przypisanie tekstury graczowi - TERAZ ROBIMY TO PRZY STARCIE GRY
 
     //Enemy enemy(990, 710, 50, 2);
     //enemy.setTexture(enemyTexture); // Przypisanie tekstury wrogowi
@@ -643,6 +671,27 @@ int main(int argc, char* argv[]) {
         przyciskiMenu[i] = { spacing + i * (sqSize + spacing), (SCREEN_HEIGHT - sqSize) / 2 + menuOffsetY, sqSize, sqSize };
     }
 
+    // --- PRZYCISKI WYBORU KOLORU (SIATKA 2x4) ---
+    SDL_Rect colorButtons[8];
+    int colorBtnSize = 40;
+    int colorBtnGap = 10;
+    // Obliczanie pozycji siatki (prawa strona)
+    int gridStartX = SCREEN_WIDTH / 2 + 100;
+    int gridStartY = 300; // Pod polem wpisywania imienia
+
+    for (int i = 0; i < 8; i++) {
+        int row = i / 4; // 0 lub 1
+        int col = i % 4; // 0, 1, 2, 3
+        colorButtons[i] = {
+            gridStartX + col * (colorBtnSize + colorBtnGap),
+            gridStartY + row * (colorBtnSize + colorBtnGap),
+            colorBtnSize,
+            colorBtnSize
+        };
+    }
+    // Pozycja podglądu (lewa strona)
+    SDL_Rect previewRect = { SCREEN_WIDTH / 2 - 260, gridStartY, 100, 100 };
+
     int aktualnyLvl = 0;
     bool running = true;
     bool gameOver = false;
@@ -676,10 +725,21 @@ int main(int argc, char* argv[]) {
                 //START GRY PO NACISNIECIU SPACJI (Teraz myszki)
                 if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) {
                     SDL_Point mousePos = { e.button.x, e.button.y };
+
+                    // 1. SPRAWDZENIE KLIKNIĘCIA W KOLOR
+                    for (int i = 0; i < 8; i++) {
+                        if (SDL_PointInRect(&mousePos, &colorButtons[i])) {
+                            selectedColorIndex = i; // Zmiana wybranego koloru
+                        }
+                    }
+
                     for (int i = 0; i < 3; i++) {
                         if (SDL_PointInRect(&mousePos, &przyciskiMenu[i]) && i < LICZBA_LEVELI && odblokowaneLevele[i]) {
                             aktualnyLvl = i;
                             menuActive = false;
+
+                            // !!! PRZYPISANIE WYBRANEJ TEKSTURY GRACZOWI !!!
+                            player.setTexture(tractorOptions[selectedColorIndex].texture);
 
                             // 1. LOSOWANIE BOOSTERÓW
                             boosters.clear();
@@ -817,11 +877,7 @@ int main(int argc, char* argv[]) {
                 }
             }
 
-            if (playerTexture) {
-                SDL_Rect bigTractorRect = { SCREEN_WIDTH / 2 - 250, SCREEN_HEIGHT / 2 - 250, 500, 500 };
-                SDL_RenderCopy(renderer, playerTexture, NULL, &bigTractorRect);
-            }
-
+            // --- TŁO MENU (PRZYCIEMNIENIE) ---
             SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
             SDL_SetRenderDrawColor(renderer, 0, 0, 0, 180);
             SDL_Rect fullscreen = { 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT };
@@ -854,6 +910,53 @@ int main(int argc, char* argv[]) {
             SDL_RenderDrawRect(renderer, &inputRect);
 
             rysujTekstWycentrowany(renderer, fontUI, playerName + (SDL_GetTicks() % 1000 < 500 ? "|" : ""), 220, textColor);
+
+            // --- NOWOŚĆ: RYSOWANIE WYBORU KOLORU ---
+
+            // 1. RYSOWANIE PODGLĄDU (PO LEWEJ)
+            rysujTekst(renderer, fontUI, "Wyglad:", previewRect.x, previewRect.y - 25, { 255, 255, 255 });
+
+            // Tło pod podglądem
+            SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
+            SDL_RenderFillRect(renderer, &previewRect);
+            SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+            SDL_RenderDrawRect(renderer, &previewRect);
+
+            // Rysowanie wybranego traktora
+            if (tractorOptions[selectedColorIndex].texture) {
+                // Ustawiamy kolor na normalny
+                SDL_SetTextureColorMod(tractorOptions[selectedColorIndex].texture, 255, 255, 255);
+                SDL_RenderCopy(renderer, tractorOptions[selectedColorIndex].texture, NULL, &previewRect);
+            }
+
+            // 2. RYSOWANIE SIATKI (PO PRAWEJ)
+            rysujTekst(renderer, fontUI, "Wybierz kolor:", gridStartX, gridStartY - 25, { 255, 255, 255 });
+
+            for (int i = 0; i < 8; i++) {
+                // Wypełnienie kolorem
+                SDL_SetRenderDrawColor(renderer,
+                    tractorOptions[i].colorRGB.r,
+                    tractorOptions[i].colorRGB.g,
+                    tractorOptions[i].colorRGB.b,
+                    255);
+                SDL_RenderFillRect(renderer, &colorButtons[i]);
+
+                // Ramka
+                if (i == selectedColorIndex) {
+                    // Wybrany: Gruba biała ramka
+                    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+                    SDL_Rect border = colorButtons[i];
+                    SDL_RenderDrawRect(renderer, &border);
+                    border.x++; border.y++; border.w -= 2; border.h -= 2; // Pogrubienie
+                    SDL_RenderDrawRect(renderer, &border);
+                }
+                else {
+                    // Niewybrany: Cienka czarna ramka
+                    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+                    SDL_RenderDrawRect(renderer, &colorButtons[i]);
+                }
+            }
+            // ----------------------------------------
 
             for (int i = 0; i < 3; i++) {
                 // 1. Wybór odpowiedniej tekstury
@@ -1144,8 +1247,13 @@ int main(int argc, char* argv[]) {
     SDL_DestroyTexture(bossTexture);
     SDL_DestroyTexture(crownTexture);
 
+    // Czyszczenie tekstur kolorów traktorów
+    for (auto& opt : tractorOptions) {
+        if (opt.texture) SDL_DestroyTexture(opt.texture);
+    }
+
     // Sprzątanie tekstur postaci
-    SDL_DestroyTexture(playerTexture);
+    // SDL_DestroyTexture(playerTexture); // playerTexture nie istnieje jako osobna zmienna, jest teraz w wektorze
     //SDL_DestroyTexture(enemyTexture);
     for (int i = 0; i < 3; i++) {
         for (int j = 0; j < 3; j++) {
