@@ -533,6 +533,11 @@ int main(int argc, char* argv[]) {
     SDL_Texture* playerTexture = wczytajTeksture(renderer, "assets\\tractor_red.bmp", true);
     SDL_Texture* enemyTexture = wczytajTeksture(renderer, "assets\\babes11.bmp", true);
 
+    // Ładowanie grafik do menu wyboru poziomów
+    SDL_Texture* lvl1Tex = wczytajTeksture(renderer, "assets\\lvl1.bmp");
+    SDL_Texture* lvl2Tex = wczytajTeksture(renderer, "assets\\lvl2.bmp");
+    SDL_Texture* bossLvlTex = wczytajTeksture(renderer, "assets\\bosslvl.bmp");
+
     //Inicjalizacja obiektow
     Player player(80, 80, 50, 10);
     player.setTexture(playerTexture); // Przypisanie tekstury graczowi
@@ -646,7 +651,22 @@ int main(int argc, char* argv[]) {
             SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
 
             SDL_Color titleColor = { 255, 215, 0 };
-            rysujTekstWycentrowany(renderer, fontTitle, "TRAKTORZYSTA", 50, titleColor);
+            //rysujTekstWycentrowany(renderer, fontTitle, "TRAKTORZYSTA", 50, titleColor);
+
+            // --- KOD ROZCIĄGAJĄCY TYTUŁ ---
+            SDL_Surface* titleSurface = TTF_RenderText_Solid(fontTitle, "TRAKTORZYSTA", titleColor);
+            if (titleSurface) {
+                SDL_Texture* titleTexture = SDL_CreateTextureFromSurface(renderer, titleSurface);
+                // Ustawiamy prostokąt: X=10, Y=0 (sama góra),
+                // Szerokość = Szerokość ekranu - 20 (marginesy), 
+                // Wysokość = 180 (wszystko co dostępne nad napisem 'Wpisz imie')
+                SDL_Rect titleRect = { 10, 0, SCREEN_WIDTH - 60, 140 };
+                SDL_RenderCopy(renderer, titleTexture, NULL, &titleRect);
+
+                SDL_FreeSurface(titleSurface);
+                SDL_DestroyTexture(titleTexture);
+            }
+            // -------------------------------
 
             SDL_Color textColor = { 255, 255, 255 };
             rysujTekstWycentrowany(renderer, fontUI, "Wpisz imie traktorzysty:", 180, textColor);
@@ -658,19 +678,35 @@ int main(int argc, char* argv[]) {
             rysujTekstWycentrowany(renderer, fontUI, playerName + (SDL_GetTicks() % 1000 < 500 ? "|" : ""), 220, textColor);
 
             for (int i = 0; i < 3; i++) {
-                // Jeśli poziom jest odblokowany - kolor jasny, jeśli zablokowany - ciemnoszary
-                if (odblokowaneLevele[i]) {
-                    if (i == 0) SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255); // Poziom 1 (Biały)
-                    else if (i == 1) SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255); // Poziom 2 (Żółty)
-                    else SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255); // Poziom 3 (Czerwony)
+                // 1. Wybór odpowiedniej tekstury
+                SDL_Texture* currentLvlTex = nullptr;
+                if (i == 0) currentLvlTex = lvl1Tex;
+                else if (i == 1) currentLvlTex = lvl2Tex;
+                else if (i == 2) currentLvlTex = bossLvlTex;
+
+                if (currentLvlTex) {
+                    if (odblokowaneLevele[i]) {
+                        // ODBLOKOWANY: Resetujemy kolor do pełnej jasności (255, 255, 255)
+                        SDL_SetTextureColorMod(currentLvlTex, 255, 255, 255);
+                    }
+                    else {
+                        // ZABLOKOWANY: Przyciemniamy grafikę (np. 60, 60, 60)
+                        // Im mniejsza liczba, tym ciemniejsza grafika
+                        SDL_SetTextureColorMod(currentLvlTex, 60, 60, 60);
+                    }
+
+                    // Rysujemy grafikę (będzie jasna lub ciemna w zależności od ustawienia wyżej)
+                    SDL_RenderCopy(renderer, currentLvlTex, NULL, &przyciskiMenu[i]);
                 }
                 else {
-                    SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255); // ZABLOKOWANY (Szary)
+                    // Zabezpieczenie na wypadek braku grafiki (rysowanie kwadratu)
+                    SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
+                    SDL_RenderFillRect(renderer, &przyciskiMenu[i]);
                 }
-                SDL_RenderFillRect(renderer, &przyciskiMenu[i]);
 
-                std::string lvlNum = std::to_string(i + 1);
-                rysujTekst(renderer, fontTitle, lvlNum, przyciskiMenu[i].x + sqSize / 2 - 20, przyciskiMenu[i].y + sqSize / 2 - 40, { 0,0,0 });
+                // Rysowanie czarnej ramki dookoła przycisku
+                SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+                SDL_RenderDrawRect(renderer, &przyciskiMenu[i]);
             }
         }
         else {
@@ -863,6 +899,9 @@ int main(int argc, char* argv[]) {
     // Sprzątanie tekstur postaci
     SDL_DestroyTexture(playerTexture);
     SDL_DestroyTexture(enemyTexture);
+    SDL_DestroyTexture(lvl1Tex);
+    SDL_DestroyTexture(lvl2Tex);
+    SDL_DestroyTexture(bossLvlTex);
 
     TTF_CloseFont(fontUI);
     TTF_CloseFont(fontTitle);
