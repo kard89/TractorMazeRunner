@@ -10,6 +10,7 @@
 #include <iomanip>
 #include <sstream>
 #include <SDL_ttf.h>
+#include <random> // Potrzebne do tasowania boosterów
 
 const int SCREEN_WIDTH = 1120; //Szerokosc okna (16 * 70)
 const int SCREEN_HEIGHT = 840; //Wysokosc okna (12 * 70)
@@ -17,7 +18,7 @@ const int SCREEN_HEIGHT = 840; //Wysokosc okna (12 * 70)
 const int TILE_SIZE = 70; // (Powiększone z 50)
 const int MAP_ROWS = 12;
 const int MAP_COLS = 16;
-const int LICZBA_LEVELI = 2; // Liczba dostepnych map
+const int LICZBA_LEVELI = 3; // Liczba dostepnych map
 
 //Struktura Boosterow
 enum BoosterType { SPEED_UP, INVINCIBLE, SLOW_ENEMY, FREEZE, NONE };
@@ -56,6 +57,20 @@ int mazeLevels[LICZBA_LEVELI][MAP_ROWS][MAP_COLS] = {
         {1,0,1,1,0,1,0,0,0,0,1,0,1,1,0,1},
         {1,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1},
         {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}
+    },
+    {    // POZIOM 3 (BOSS) - Tutaj możesz narysować trudniejszy labirynt!
+        {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}, // Ściana górna
+        {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1}, // Puste
+        {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1}, // Puste
+        {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1}, // Puste
+        {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1}, // Puste
+        {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1}, // Puste
+        {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1}, // Puste
+        {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1}, // Puste
+        {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1}, // Puste
+        {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1}, // Puste
+        {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1}, // Puste
+        {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}  // Ściana dolna
     }
 };
 
@@ -225,6 +240,9 @@ private:
     SDL_Texture* texture = nullptr; // Dodana tekstura wroga
     std::vector<SDL_Point> path; // Przechowuje list punktw do przejcia
 
+    // Licznik dla pathfindingu i teraz również dla spowalniania ruchu
+    int pathTimer;
+
     // Funkcja obliczajca drog (Uproszczony A*)
     void findPath(int startX, int startY, int targetX, int targetY) {
         path.clear();
@@ -277,6 +295,8 @@ public:
         rect = { x, y, size, size };
         baseSpeed = moveSpeed;
         currentSpeed = moveSpeed;
+        // Inicjalizujemy licznik losową wartością
+        pathTimer = rand() % 30;
     }
     void setPos(int x, int y) { rect.x = x; rect.y = y; path.clear(); }
     void setTexture(SDL_Texture* tex) { texture = tex; } // Setter tekstury
@@ -293,8 +313,7 @@ public:
         slowed = true;
         frozen = false;
         slowTimer = SDL_GetTicks() + 5000;
-        currentSpeed = baseSpeed / 2; // Zwolnij o połowę
-        if (currentSpeed < 1) currentSpeed = 1;
+        // USUNIĘTO: currentSpeed = baseSpeed / 2; (To powodowało 0)
     }
 
     void update(int playerX, int playerY) {
@@ -303,28 +322,39 @@ public:
         if (frozen && now > freezeTimer) frozen = false;
         if (slowed && now > slowTimer) {
             slowed = false;
-            currentSpeed = baseSpeed;
         }
-        if (slowed && !frozen) currentSpeed = baseSpeed / 2;
 
         if (frozen) return;
 
-        // Obliczaj now ciek co 30 klatek (eby nie obcia procesora)
-        static int frameCounter = 0;
-        if (frameCounter++ % 30 == 0) {
+        // Obliczaj now ciek co 30 klatek
+        pathTimer++;
+        if (pathTimer % 30 == 0) {
             findPath(rect.x, rect.y, playerX, playerY);
         }
 
-        if (!path.empty()) {
+        // --- NAPRAWA LOGIKI RUCHU ---
+        bool shouldMove = true;
+
+        if (slowed) {
+            // Jeśli wróg jest w błocie, ruszamy się tylko w parzystych klatkach
+            // Dzięki temu przy prędkości 1, efektywna prędkość to 0.5
+            if (pathTimer % 2 != 0) shouldMove = false;
+        }
+
+        if (shouldMove && !path.empty()) {
             SDL_Point target = path[0];
-            // Używamy currentSpeed
-            if (rect.x < target.x) rect.x += currentSpeed;
-            else if (rect.x > target.x) rect.x -= currentSpeed;
-            if (rect.y < target.y) rect.y += currentSpeed;
-            else if (rect.y > target.y) rect.y -= currentSpeed;
+
+            // Używamy baseSpeed (które wynosi 1), ale dzięki 'shouldMove'
+            // ruch wykonuje się rzadziej, dając efekt spowolnienia.
+            int speed = baseSpeed;
+
+            if (rect.x < target.x) rect.x += speed;
+            else if (rect.x > target.x) rect.x -= speed;
+            if (rect.y < target.y) rect.y += speed;
+            else if (rect.y > target.y) rect.y -= speed;
 
             // Jeli dotar do punktu kontrolnego cieki, usu go i id do nastpnego
-            if (abs(rect.x - target.x) < currentSpeed + 1 && abs(rect.y - target.y) < currentSpeed + 1) {
+            if (abs(rect.x - target.x) < speed + 1 && abs(rect.y - target.y) < speed + 1) {
                 path.erase(path.begin());
             }
         }
@@ -341,19 +371,14 @@ public:
 
     void draw(SDL_Renderer* renderer) {
         if (texture) {
-            // USUNIĘTE ZMIANY KOLORÓW DLA WROGA (zgodnie z prośbą)
-            // if (frozen) SDL_SetTextureColorMod(texture, 100, 100, 255);
-            // else if (slowed) SDL_SetTextureColorMod(texture, 150, 100, 50);
-            // else SDL_SetTextureColorMod(texture, 255, 255, 255); // Normalny
-
             // Zawsze normalny kolor
             SDL_SetTextureColorMod(texture, 255, 255, 255);
             SDL_RenderCopy(renderer, texture, NULL, &rect);
         }
         else {
             // Stary kod rysowania (backup)
-            if (frozen) SDL_SetRenderDrawColor(renderer, 0, 255, 255, 255); // Niebieski jeśli zamrożony
-            else if (slowed) SDL_SetRenderDrawColor(renderer, 139, 69, 19, 255); // Brązowy jeśli spowolniony (Błoto)
+            if (frozen) SDL_SetRenderDrawColor(renderer, 0, 255, 255, 255);
+            else if (slowed) SDL_SetRenderDrawColor(renderer, 139, 69, 19, 255);
             else SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
             SDL_RenderFillRect(renderer, &rect);
         }
@@ -531,8 +556,26 @@ int main(int argc, char* argv[]) {
 
     // Ładowanie tekstur POSTACI (Player i Enemy) z przezroczystością (true)
     SDL_Texture* playerTexture = wczytajTeksture(renderer, "assets\\tractor_red.bmp", true);
-    SDL_Texture* enemyTexture = wczytajTeksture(renderer, "assets\\babes11.bmp", true);
+    //SDL_Texture* enemyTexture = wczytajTeksture(renderer, "assets\\babes11.bmp", true);
+    // Level 0 (Gra 1): babes11, babes12, babes13
+    // Level 1 (Gra 2): babes21, babes22, babes23
+    // Level 2 (Boss):  Domyślnie użyjemy tych z poziomu 2 (lub stwórz pliki babes31...)
+    SDL_Texture* enemyTextures[3][3];
 
+    // Level 1
+    enemyTextures[0][0] = wczytajTeksture(renderer, "assets\\babes11.bmp", true);
+    enemyTextures[0][1] = wczytajTeksture(renderer, "assets\\babes12.bmp", true);
+    enemyTextures[0][2] = wczytajTeksture(renderer, "assets\\babes13.bmp", true);
+
+    // Level 2
+    enemyTextures[1][0] = wczytajTeksture(renderer, "assets\\babes21.bmp", true);
+    enemyTextures[1][1] = wczytajTeksture(renderer, "assets\\babes22.bmp", true);
+    enemyTextures[1][2] = wczytajTeksture(renderer, "assets\\babes23.bmp", true);
+
+    // Level 3 (Boss) - kopiujemy te z levelu 2 (chyba że masz pliki babes31.bmp itd.)
+    enemyTextures[2][0] = enemyTextures[1][0];
+    enemyTextures[2][1] = enemyTextures[1][1];
+    enemyTextures[2][2] = enemyTextures[1][2];
     // Ładowanie grafik do menu wyboru poziomów
     SDL_Texture* lvl1Tex = wczytajTeksture(renderer, "assets\\lvl1.bmp");
     SDL_Texture* lvl2Tex = wczytajTeksture(renderer, "assets\\lvl2.bmp");
@@ -542,9 +585,19 @@ int main(int argc, char* argv[]) {
     Player player(80, 80, 50, 10);
     player.setTexture(playerTexture); // Przypisanie tekstury graczowi
 
-    Enemy enemy(990, 710, 50, 2);
-    enemy.setTexture(enemyTexture); // Przypisanie tekstury wrogowi
+    //Enemy enemy(990, 710, 50, 2);
+    //enemy.setTexture(enemyTexture); // Przypisanie tekstury wrogowi
 
+    // ZMIANA: Lista wrogów zamiast jednego
+    std::vector<Enemy> enemies;
+
+    // Definiujemy STAŁE pozycje boosterów
+    SDL_Rect boosterPositions[4] = {
+        {225, 85, 40, 40},
+        {505, 225, 40, 40},
+        {85, 715, 40, 40},
+        {995, 85, 40, 40}
+    };
     //Inicjalizacja boosterow
     std::vector<Booster> boosters;
     boosters.push_back({ {225, 85, 40, 40}, SPEED_UP, true });
@@ -602,14 +655,43 @@ int main(int argc, char* argv[]) {
                         if (SDL_PointInRect(&mousePos, &przyciskiMenu[i]) && i < LICZBA_LEVELI && odblokowaneLevele[i]) {
                             aktualnyLvl = i;
                             menuActive = false;
+
+                            // 1. LOSOWANIE BOOSTERÓW
+                            boosters.clear();
+                            std::vector<BoosterType> types = { SPEED_UP, INVINCIBLE, SLOW_ENEMY, FREEZE };
+
+                            // Tasowanie typów
+                            std::random_device rd;
+                            std::mt19937 g(rd());
+                            std::shuffle(types.begin(), types.end(), g);
+
+                            // Przypisanie przetasowanych typów do stałych pozycji
+                            for (int k = 0; k < 4; k++) {
+                                boosters.push_back({ boosterPositions[k], types[k], true });
+                            }
+
+                            // 2. TWORZENIE 3 WROGÓW
+                            enemies.clear();
+                            // Pozycje startowe wrogów (rogi mapy): Prawa-Góra, Lewy-Dół, Prawy-Dół
+                            // (Lewa-Góra jest zajęta przez Gracza)
+                            int spawnX[] = { 990, 80, 990 };
+                            int spawnY[] = { 80, 710, 710 };
+
+                            for (int k = 0; k < 3; k++) {
+                                // ZMIANA: Prędkość ustawiona na 1 (wolniej), bo jest ich trzech
+                                Enemy newEnemy(spawnX[k], spawnY[k], 50, 1);
+                                newEnemy.setTexture(enemyTextures[aktualnyLvl][k]); // Unikalna tekstura dla każdego
+                                enemies.push_back(newEnemy);
+                            }
+
+                            // Reszta inicjalizacji
                             ladujPoziom(aktualnyLvl, boosters);
                             pozostalePunkty = liczPunkty();
                             aktualnePunkty = 0;
                             player.setPos(80, 80);
-                            enemy.setPos(990, 710);
+
                             gameOver = false;
                             player.resetBoosters();
-                            enemy.resetStatus();
                             SDL_StopTextInput();
                         }
                     }
@@ -730,12 +812,35 @@ int main(int argc, char* argv[]) {
                         // Przejście do następnego poziomu lub powrót do menu
                         if (aktualnyLvl < LICZBA_LEVELI - 1) {
                             aktualnyLvl++;
+
+                            // 1. LOSOWANIE BOOSTERÓW (tak samo jak przy starcie)
+                            boosters.clear();
+                            std::vector<BoosterType> types = { SPEED_UP, INVINCIBLE, SLOW_ENEMY, FREEZE };
+                            std::random_device rd;
+                            std::mt19937 g(rd());
+                            std::shuffle(types.begin(), types.end(), g);
+
+                            for (int k = 0; k < 4; k++) {
+                                boosters.push_back({ boosterPositions[k], types[k], true });
+                            }
+
                             ladujPoziom(aktualnyLvl, boosters);
                             pozostalePunkty = liczPunkty();
                             player.setPos(80, 80);
-                            enemy.setPos(990, 710);
+
+                            // 2. TWORZENIE NOWYCH WROGÓW DLA NASTĘPNEGO POZIOMU
+                            enemies.clear();
+                            int spawnX[] = { 990, 80, 990 };
+                            int spawnY[] = { 80, 710, 710 };
+
+                            for (int k = 0; k < 3; k++) {
+                                Enemy newEnemy(spawnX[k], spawnY[k], 50, 1);
+                                newEnemy.setTexture(enemyTextures[aktualnyLvl][k]);
+                                enemies.push_back(newEnemy);
+                            }
+
                             player.resetBoosters();
-                            enemy.resetStatus();
+                            // enemy.resetStatus(); // Tę linię usuwamy, bo nowi wrogowie są już zresetowani
                         }
                         else {
                             menuActive = true; // Koniec gry - powrót do menu
@@ -744,27 +849,46 @@ int main(int argc, char* argv[]) {
                     }
                 }
 
-                // 2. AKTUALIZACJA TYTUŁU OKNA (Teraz HUD)
+                // 2. AKTUALIZACJA
                 player.update();
-                enemy.update(player.getX(), player.getY());
+
+                // Aktualizacja wszystkich wrogów
+                for (auto& enemy : enemies) {
+                    enemy.update(player.getX(), player.getY());
+                }
 
                 SDL_Rect pRect = player.getRect();
                 for (auto& b : boosters) {
                     if (b.active && SDL_HasIntersection(&pRect, &b.rect)) {
-                        if (b.type == FREEZE) enemy.freeze();
-                        else if (b.type == SLOW_ENEMY) enemy.slowDown();
+                        if (b.type == FREEZE) {
+                            // Zamroź WSZYSTKICH wrogów
+                            for (auto& enemy : enemies) enemy.freeze();
+                        }
+                        else if (b.type == SLOW_ENEMY) {
+                            // Spowolnij WSZYSTKICH wrogów
+                            for (auto& enemy : enemies) enemy.slowDown();
+                        }
                         else player.applyBooster(b.type);
                         b.active = false;
                     }
                 }
 
                 // 3. KOLIZJA I ZAPIS REKORDU
-                SDL_Rect eRect = enemy.getRect();
-                if (SDL_HasIntersection(&pRect, &eRect) && !player.isInvincible()) {
-                    gameOver = true;
-                    if (aktualnePunkty > rekordZycia) {
-                        rekordZycia = aktualnePunkty;
-                        zapiszRekord(rekordZycia);
+                // Sprawdzamy kolizję z KAŻDYM wrogiem
+                for (auto& enemy : enemies) {
+                    SDL_Rect eRect = enemy.getRect();
+
+                    // !!! POPRAWKA: "Zmniejszanie" hitboxa gracza dla bardziej precyzyjnej kolizji !!!
+                    // Dzięki temu gracz nie ginie, gdy tylko "muśnie" piksel wroga.
+                    // Zmniejszamy prostokąt kolizji o 10 pikseli z każdej strony.
+                    SDL_Rect hitBox = { pRect.x + 10, pRect.y + 10, pRect.w - 20, pRect.h - 20 };
+
+                    if (SDL_HasIntersection(&hitBox, &eRect) && !player.isInvincible()) {
+                        gameOver = true;
+                        if (aktualnePunkty > rekordZycia) {
+                            rekordZycia = aktualnePunkty;
+                            zapiszRekord(rekordZycia);
+                        }
                     }
                 }
             }
@@ -819,7 +943,9 @@ int main(int argc, char* argv[]) {
             }
 
             player.draw(renderer);
-            enemy.draw(renderer);
+            for (auto& enemy : enemies) {
+                enemy.draw(renderer);
+            }
 
             // --- UI W GRZE (HUD) ---
 
@@ -849,15 +975,16 @@ int main(int argc, char* argv[]) {
                 boosterText = "TURBO";
                 timeRem = player.getSpeedRemainingTime();
             }
-            else if (enemy.isFrozen()) {
+            // Sprawdzamy stan pierwszego wroga (bo wszyscy dostają efekt naraz)
+            else if (!enemies.empty() && enemies[0].isFrozen()) {
                 activeIcon = freezeTexture;
                 boosterText = "MROZ";
-                timeRem = enemy.getFreezeRemainingTime();
+                timeRem = enemies[0].getFreezeRemainingTime();
             }
-            else if (enemy.isSlowed()) {
+            else if (!enemies.empty() && enemies[0].isSlowed()) {
                 activeIcon = slowTexture;
                 boosterText = "BLOTO";
-                timeRem = enemy.getSlowRemainingTime();
+                timeRem = enemies[0].getSlowRemainingTime();
             }
 
             if (timeRem > 0) {
@@ -898,7 +1025,14 @@ int main(int argc, char* argv[]) {
 
     // Sprzątanie tekstur postaci
     SDL_DestroyTexture(playerTexture);
-    SDL_DestroyTexture(enemyTexture);
+    //SDL_DestroyTexture(enemyTexture);
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 3; j++) {
+            // Sprawdzenie czy nie usuwamy 2 razy tego samego (dla bossa)
+            if (i == 2) continue;
+            SDL_DestroyTexture(enemyTextures[i][j]);
+        }
+    }
     SDL_DestroyTexture(lvl1Tex);
     SDL_DestroyTexture(lvl2Tex);
     SDL_DestroyTexture(bossLvlTex);
