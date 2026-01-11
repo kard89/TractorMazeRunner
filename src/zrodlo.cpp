@@ -6,8 +6,9 @@
 #include <algorithm>
 #include <map>
 #include <fstream>  // Do obsługi pliku rekord.txt
-#include <string>   // Do zamiany liczb na tekst w tytule okna
+#include <string>   // Do zamiany liczb na tekst w tytule okna (teraz używane w HUD)
 #include <iomanip>
+#include <sstream>
 #include <SDL_ttf.h>
 
 const int SCREEN_WIDTH = 1120; //Szerokosc okna (16 * 70)
@@ -79,6 +80,27 @@ int liczPunkty() {
     return p;
 }
 
+// Funkcja pomocnicza do rysowania tekstu
+void rysujTekst(SDL_Renderer* renderer, TTF_Font* font, std::string tekst, int x, int y, SDL_Color kolor) {
+    if (tekst.empty()) return;
+    SDL_Surface* surface = TTF_RenderText_Solid(font, tekst.c_str(), kolor);
+    if (surface) {
+        SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+        SDL_Rect rect = { x, y, surface->w, surface->h };
+        SDL_RenderCopy(renderer, texture, NULL, &rect);
+        SDL_FreeSurface(surface);
+        SDL_DestroyTexture(texture);
+    }
+}
+
+// Funkcja centrująca tekst w poziomie
+void rysujTekstWycentrowany(SDL_Renderer* renderer, TTF_Font* font, std::string tekst, int y, SDL_Color kolor) {
+    if (tekst.empty()) return;
+    int w, h;
+    TTF_SizeText(font, tekst.c_str(), &w, &h);
+    rysujTekst(renderer, font, tekst, (SCREEN_WIDTH - w) / 2, y, kolor);
+}
+
 class Player {
 private:
     SDL_Rect rect; //struktura do przechowywania polozenia
@@ -116,14 +138,10 @@ public://Ustawianie pozycji startowej i predkosci
             int oldX = rect.x;
             int oldY = rect.y;
             switch (e.key.keysym.sym) {
-            case SDLK_UP: rect.y -= currentSpeed;
-                break;
-            case SDLK_DOWN: rect.y += currentSpeed;
-                break;
-            case SDLK_LEFT: rect.x -= currentSpeed;
-                break;
-            case SDLK_RIGHT: rect.x += currentSpeed;
-                break;
+            case SDLK_UP: rect.y -= currentSpeed; break;
+            case SDLK_DOWN: rect.y += currentSpeed; break;
+            case SDLK_LEFT: rect.x -= currentSpeed; break;
+            case SDLK_RIGHT: rect.x += currentSpeed; break;
             }
             for (int r = 0; r < MAP_ROWS; r++) {
                 for (int c = 0; c < MAP_COLS; c++) {
@@ -143,12 +161,8 @@ public://Ustawianie pozycji startowej i predkosci
     }
     void update() { //Punkt kontrolny czy nasz ,,traktor" nie wyjezdza poza wymiar ekranu
         Uint32 now = SDL_GetTicks();
-        if (now > speedTimer) {
-            currentSpeed = baseSpeed;
-        }
-        if (now > invincibleTimer) {
-            invincible = false;
-        }
+        if (now > speedTimer) currentSpeed = baseSpeed;
+        if (now > invincibleTimer) invincible = false;
 
         if (rect.x < 0) rect.x = 0;
         if (rect.y < 0) rect.y = 0;
@@ -158,7 +172,14 @@ public://Ustawianie pozycji startowej i predkosci
     void draw(SDL_Renderer* renderer) { //rysowanie gracza w oknie
         if (texture) {
             // Analogiczne zmiany kolorow dla tekstury (Color Mod)
-            SDL_SetTextureColorMod(texture, 255, 255, 255); // Normalny
+            // USUNIĘTE ZMIANY KOLORÓW DLA BOOSTERA (zgodnie z prośbą)
+            // if(invincible) SDL_SetTextureColorMod(texture, 255, 255, 100); 
+            // else if(currentSpeed > baseSpeed) SDL_SetTextureColorMod(texture, 255, 150, 150); 
+            // else SDL_SetTextureColorMod(texture, 255, 255, 255); // Normalny
+
+            // Upewniamy się, że kolor jest standardowy (brak tintu)
+            SDL_SetTextureColorMod(texture, 255, 255, 255);
+
             SDL_RenderCopy(renderer, texture, NULL, &rect);
         }
         else {
@@ -189,7 +210,6 @@ public://Ustawianie pozycji startowej i predkosci
         invincible = false;
         invincibleTimer = 0;
         speedTimer = 0;
-       
     }
 };
 
@@ -280,16 +300,12 @@ public:
     void update(int playerX, int playerY) {
         // Obsługa timerów efektów
         Uint32 now = SDL_GetTicks();
-        if (frozen && now > freezeTimer) {
-            frozen = false;
-        }
+        if (frozen && now > freezeTimer) frozen = false;
         if (slowed && now > slowTimer) {
             slowed = false;
             currentSpeed = baseSpeed;
         }
-        if (slowed && !frozen) {
-            currentSpeed = baseSpeed / 2;
-        }
+        if (slowed && !frozen) currentSpeed = baseSpeed / 2;
 
         if (frozen) return;
 
@@ -301,11 +317,9 @@ public:
 
         if (!path.empty()) {
             SDL_Point target = path[0];
-
             // Używamy currentSpeed
             if (rect.x < target.x) rect.x += currentSpeed;
             else if (rect.x > target.x) rect.x -= currentSpeed;
-
             if (rect.y < target.y) rect.y += currentSpeed;
             else if (rect.y > target.y) rect.y -= currentSpeed;
 
@@ -327,7 +341,13 @@ public:
 
     void draw(SDL_Renderer* renderer) {
         if (texture) {
-            SDL_SetTextureColorMod(texture, 255, 255, 255); // Normalny
+            // USUNIĘTE ZMIANY KOLORÓW DLA WROGA (zgodnie z prośbą)
+            // if (frozen) SDL_SetTextureColorMod(texture, 100, 100, 255);
+            // else if (slowed) SDL_SetTextureColorMod(texture, 150, 100, 50);
+            // else SDL_SetTextureColorMod(texture, 255, 255, 255); // Normalny
+
+            // Zawsze normalny kolor
+            SDL_SetTextureColorMod(texture, 255, 255, 255);
             SDL_RenderCopy(renderer, texture, NULL, &rect);
         }
         else {
@@ -338,11 +358,9 @@ public:
             SDL_RenderFillRect(renderer, &rect);
         }
     }
-
     bool isFrozen() { return frozen; }
     bool isSlowed() { return slowed; }
-
-    void resetStatus(){
+    void resetStatus() {
         frozen = false;
         slowed = false;
         freezeTimer = 0;
@@ -402,7 +420,59 @@ SDL_Texture* wczytajTeksture(SDL_Renderer* renderer, const char* path, bool colo
         return nullptr;
     }
     if (colorKey) {
+        // --- NAPRAWA GRAFIKI 252,0,252 -> 255,0,255 ---
+        // Zanim ustawimy klucz koloru, zamieniamy wszystkie piksele (252,0,252) na (255,0,255)
+        // Musimy zablokować powierzchnię, aby dostać się do pikseli
+        SDL_LockSurface(tempSurface);
+
+        int bpp = tempSurface->format->BytesPerPixel;
+        for (int y = 0; y < tempSurface->h; y++) {
+            for (int x = 0; x < tempSurface->w; x++) {
+                // Wskaźnik do konkretnego piksela
+                Uint8* p = (Uint8*)tempSurface->pixels + y * tempSurface->pitch + x * bpp;
+                Uint32 pixelValue = 0;
+
+                // Pobranie wartości piksela w zależności od formatu (24 lub 32 bity)
+                if (bpp == 3) {
+                    if (SDL_BYTEORDER == SDL_BIG_ENDIAN)
+                        pixelValue = p[0] << 16 | p[1] << 8 | p[2];
+                    else
+                        pixelValue = p[0] | p[1] << 8 | p[2] << 16;
+                }
+                else if (bpp == 4) {
+                    pixelValue = *(Uint32*)p;
+                }
+
+                Uint8 r, g, b;
+                SDL_GetRGB(pixelValue, tempSurface->format, &r, &g, &b);
+
+                // JEŚLI KOLOR TO TEN BŁĘDNY (252, 0, 252)
+                if (r == 252 && g == 0 && b == 252) {
+                    // Zamień go na idealną Magentę (255, 0, 255)
+                    Uint32 newPixel = SDL_MapRGB(tempSurface->format, 255, 0, 255);
+
+                    if (bpp == 3) {
+                        if (SDL_BYTEORDER == SDL_BIG_ENDIAN) {
+                            p[0] = (newPixel >> 16) & 0xFF;
+                            p[1] = (newPixel >> 8) & 0xFF;
+                            p[2] = newPixel & 0xFF;
+                        }
+                        else {
+                            p[0] = newPixel & 0xFF;
+                            p[1] = (newPixel >> 8) & 0xFF;
+                            p[2] = (newPixel >> 16) & 0xFF;
+                        }
+                    }
+                    else if (bpp == 4) {
+                        *(Uint32*)p = newPixel;
+                    }
+                }
+            }
+        }
+        SDL_UnlockSurface(tempSurface);
+
         // 2. USTAWIANIE PRZEZROCZYSTOŚCI (Usuwamy Magentę: 255, 0, 255)
+        // Teraz, gdy usunęliśmy 252,0,252, ten klucz usunie oba kolory (bo oba są teraz 255,0,255)
         SDL_SetColorKey(tempSurface, SDL_TRUE, SDL_MapRGB(tempSurface->format, 255, 0, 255));
     }
     // 3. TWORZENIE TEKSTURY
@@ -419,15 +489,15 @@ int main(int argc, char* argv[]) {
     }
 
     // Tworzenie okna
-    SDL_Window* window = SDL_CreateWindow("Traktorem przez wies",
-        SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-        SCREEN_WIDTH, SCREEN_HEIGHT, 0);
+    SDL_Window* window = SDL_CreateWindow("Traktorzysta", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, SCREEN_WIDTH, SCREEN_HEIGHT, 0);
     //Renderowanie obrazkow
-    SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+    SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC); // VSync dla płynności
+
     if (!window) {
         std::cout << "Window Error: " << SDL_GetError() << std::endl;
         return -1;
     }
+
     // 1. INICJALIZACJA (przed pętlą while)
     if (TTF_Init() == -1) {
         printf("Błąd TTF_Init: %s\n", TTF_GetError());
@@ -436,23 +506,16 @@ int main(int argc, char* argv[]) {
 
     // 2. ŁADOWANIE CZCIONKI
     // Upewnij się, że plik "arial.ttf" jest w folderze z plikiem .exe!
-    // 24 to rozmiar czcionki
-    TTF_Font* font = TTF_OpenFont("assets\\arial.ttf", 24);
-    if (!font) {
-        printf("Błąd ładowania czcionki: %s\n", TTF_GetError());
-        // Nie returnujemy tutaj, żeby zobaczyć chociaż czarne okno, ale w normalnej grze to błąd krytyczny
-    }
-    // 3. PRZYGOTOWANIE TEKSTU (Tworzymy teksturę raz, przed pętlą)
-    SDL_Color color = { 255, 0, 0 }; // Czerwony kolor (R, G, B)
-    SDL_Surface* surface = TTF_RenderText_Solid(font, "SDL_ttf dziala!", color);
-    SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+    // 24 to rozmiar czcionki (tu zmienione na couree.fon)
+    TTF_Font* fontUI = TTF_OpenFont("assets\\couree.fon", 20); // Mniejsza dla UI
+    TTF_Font* fontTitle = TTF_OpenFont("assets\\couree.fon", 72); // Duża dla tytułu
 
-    // Sprzątamy surface, bo już mamy teksturę w GPU
-    SDL_FreeSurface(surface);
-    int texW = 0;
-    int texH = 0;
-    SDL_QueryTexture(texture, NULL, NULL, &texW, &texH);
-    SDL_Rect dstRect = { 50, 50, texW, texH }; // Pozycja x=50, y=50
+    if (!fontUI || !fontTitle) {
+        printf("Błąd ładowania czcionki: %s\n", TTF_GetError());
+    }
+    // 3. PRZYGOTOWANIE TEKSTU (Tworzymy teksturę raz, przed pętlą) - stara instrukcja, teraz używamy funkcji pomocniczych
+    // Sprzątamy surface, bo już mamy teksturę w GPU (robione w funkcji rysujTekst)
+
     // ==========================================
     // 1. ŁADOWANIE GRAFIKI TARCZY (i innych boosterów)
     // ==========================================
@@ -483,15 +546,18 @@ int main(int argc, char* argv[]) {
     boosters.push_back({ {505, 225, 40, 40}, INVINCIBLE, true });
     boosters.push_back({ {85, 715, 40, 40}, SLOW_ENEMY, true });
     boosters.push_back({ {995, 85, 40, 40}, FREEZE, true });
+
     //System Poziomow 
     bool odblokowaneLevele[3];
-    wczytajPostep(odblokowaneLevele, 3); // WCZYTUJEMY STAN Z PLIKU
+    // WCZYTUJEMY STAN Z PLIKU
+    wczytajPostep(odblokowaneLevele, 3);
 
     SDL_Rect przyciskiMenu[3];
     int sqSize = 220;
     int spacing = (SCREEN_WIDTH - (3 * sqSize)) / 4;
+    int menuOffsetY = 150;
     for (int i = 0; i < 3; i++) {
-        przyciskiMenu[i] = { spacing + i * (sqSize + spacing), (SCREEN_HEIGHT - sqSize) / 2, sqSize, sqSize };
+        przyciskiMenu[i] = { spacing + i * (sqSize + spacing), (SCREEN_HEIGHT - sqSize) / 2 + menuOffsetY, sqSize, sqSize };
     }
 
     int aktualnyLvl = 0;
@@ -500,39 +566,101 @@ int main(int argc, char* argv[]) {
     bool menuActive = true;
     int rekordZycia = wczytajRekord();
     int aktualnePunkty = 0;
-   int pozostalePunkty = 0;
+    int pozostalePunkty = 0;
+
+    std::string playerName = "Gracz";
+    SDL_StartTextInput();
+
     SDL_Event e;
     while (running) {
         //Wejscie
         while (SDL_PollEvent(&e)) {
             if (e.type == SDL_QUIT) running = false;
-            //START GRY PO NACISNIECIU SPACJI
-            if (menuActive && e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) {
-                SDL_Point mousePos = { e.button.x, e.button.y };
-                for (int i = 0; i < 3; i++) {
-                    if (SDL_PointInRect(&mousePos, &przyciskiMenu[i]) && i < LICZBA_LEVELI && odblokowaneLevele[i]) {
-                        aktualnyLvl = i; menuActive = false;
-                        ladujPoziom(aktualnyLvl, boosters);
-                        pozostalePunkty = liczPunkty();
-                        aktualnePunkty = 0; player.setPos(80, 80); enemy.setPos(990, 710); gameOver = false;
-                        player.resetBoosters();
-                        enemy.resetStatus();
+
+            if (menuActive) {
+                if (e.type == SDL_TEXTINPUT) {
+                    if (playerName.length() < 15) {
+                        playerName += e.text.text;
+                    }
+                }
+                else if (e.type == SDL_KEYDOWN) {
+                    // !!! POPRAWKA: SDLK_BACKSPACE !!!
+                    if (e.key.keysym.sym == SDLK_BACKSPACE && playerName.length() > 0) {
+                        playerName.pop_back();
+                    }
+                }
+
+                //START GRY PO NACISNIECIU SPACJI (Teraz myszki)
+                if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) {
+                    SDL_Point mousePos = { e.button.x, e.button.y };
+                    for (int i = 0; i < 3; i++) {
+                        if (SDL_PointInRect(&mousePos, &przyciskiMenu[i]) && i < LICZBA_LEVELI && odblokowaneLevele[i]) {
+                            aktualnyLvl = i;
+                            menuActive = false;
+                            ladujPoziom(aktualnyLvl, boosters);
+                            pozostalePunkty = liczPunkty();
+                            aktualnePunkty = 0;
+                            player.setPos(80, 80);
+                            enemy.setPos(990, 710);
+                            gameOver = false;
+                            player.resetBoosters();
+                            enemy.resetStatus();
+                            SDL_StopTextInput();
+                        }
                     }
                 }
             }
-            if (!gameOver && !menuActive) player.handleInput(e);
+            else {
+                if (!gameOver) player.handleInput(e);
+
+                // !!! POPRAWKA: SDLK_ESCAPE !!!
+                if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE) {
+                    menuActive = true;
+                    SDL_StartTextInput();
+                }
+            }
         }
 
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+        SDL_RenderClear(renderer);
+
         if (menuActive) {
-            std::string menuTxt = "TRAKTORZYSTA | REKORD: " + std::to_string(rekordZycia) + " | WYBIERZ POZIOM";
-            SDL_SetWindowTitle(window, menuTxt.c_str());
-            SDL_SetRenderDrawColor(renderer, 20, 100, 20, 255);
-            SDL_RenderClear(renderer);
+            if (wallTexture) {
+                for (int y = 0; y < SCREEN_HEIGHT; y += 70) {
+                    for (int x = 0; x < SCREEN_WIDTH; x += 70) {
+                        SDL_Rect grassRect = { x, y, 70, 70 };
+                        SDL_RenderCopy(renderer, wallTexture, NULL, &grassRect);
+                    }
+                }
+            }
+
+            if (playerTexture) {
+                SDL_Rect bigTractorRect = { SCREEN_WIDTH / 2 - 250, SCREEN_HEIGHT / 2 - 250, 500, 500 };
+                SDL_RenderCopy(renderer, playerTexture, NULL, &bigTractorRect);
+            }
+
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+            SDL_SetRenderDrawColor(renderer, 0, 0, 0, 180);
+            SDL_Rect fullscreen = { 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT };
+            SDL_RenderFillRect(renderer, &fullscreen);
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+
+            SDL_Color titleColor = { 255, 215, 0 };
+            rysujTekstWycentrowany(renderer, fontTitle, "TRAKTORZYSTA", 50, titleColor);
+
+            SDL_Color textColor = { 255, 255, 255 };
+            rysujTekstWycentrowany(renderer, fontUI, "Wpisz imie traktorzysty:", 180, textColor);
+
+            SDL_Rect inputRect = { (SCREEN_WIDTH - 300) / 2, 210, 300, 40 };
+            SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+            SDL_RenderDrawRect(renderer, &inputRect);
+
+            rysujTekstWycentrowany(renderer, fontUI, playerName + (SDL_GetTicks() % 1000 < 500 ? "|" : ""), 220, textColor);
 
             for (int i = 0; i < 3; i++) {
                 // Jeśli poziom jest odblokowany - kolor jasny, jeśli zablokowany - ciemnoszary
                 if (odblokowaneLevele[i]) {
-                    if (i == 0) SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255); // Poziom 1 (Biały)
+                    if (i == 0) SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255); // Poziom 1 (Biały)
                     else if (i == 1) SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255); // Poziom 2 (Żółty)
                     else SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255); // Poziom 3 (Czerwony)
                 }
@@ -540,6 +668,9 @@ int main(int argc, char* argv[]) {
                     SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255); // ZABLOKOWANY (Szary)
                 }
                 SDL_RenderFillRect(renderer, &przyciskiMenu[i]);
+
+                std::string lvlNum = std::to_string(i + 1);
+                rysujTekst(renderer, fontTitle, lvlNum, przyciskiMenu[i].x + sqSize / 2 - 20, przyciskiMenu[i].y + sqSize / 2 - 40, { 0,0,0 });
             }
         }
         else {
@@ -558,10 +689,8 @@ int main(int argc, char* argv[]) {
                             if (!odblokowaneLevele[aktualnyLvl + 1]) {
                                 odblokowaneLevele[aktualnyLvl + 1] = true;
                                 zapiszPostep(odblokowaneLevele, 3);
-                                std::cout << "Odblokowano poziom: " << aktualnyLvl + 2 << std::endl;
                             }
                         }
-
                         // Przejście do następnego poziomu lub powrót do menu
                         if (aktualnyLvl < LICZBA_LEVELI - 1) {
                             aktualnyLvl++;
@@ -574,30 +703,12 @@ int main(int argc, char* argv[]) {
                         }
                         else {
                             menuActive = true; // Koniec gry - powrót do menu
+                            SDL_StartTextInput();
                         }
                     }
                 }
 
-                // 2. AKTUALIZACJA TYTUŁU OKNA
-                std::string tytul = "Poziom " + std::to_string(aktualnyLvl + 1) + " | Punkty: " + std::to_string(aktualnePunkty) + " | Rekord: " + std::to_string(rekordZycia);
-                if (player.isInvincible()) {
-                    float t = player.getInvincibleRemainingTime();
-                    if (t > 0) tytul += "|[TARCZA:" + std::to_string(t).substr(0, 3) + "s]";
-                }
-                if (player.isSpeedUp()) {
-                    float t = player.getSpeedRemainingTime();
-                    if (t > 0) tytul += "|[TURBO:" + std::to_string(t).substr(0, 3) + "s]";
-                }
-                if (enemy.isFrozen()) {
-                    float t = enemy.getFreezeRemainingTime();
-                    if (t > 0) tytul += "|[ZAMROZENIE:" + std::to_string(t).substr(0, 3) + "s]";
-                }
-                if (enemy.isSlowed()) {
-                    float t = enemy.getSlowRemainingTime();
-                    if (t > 0) tytul += "|[BLOTO:" + std::to_string(t).substr(0, 3) + "s]";
-                }
-
-                SDL_SetWindowTitle(window, tytul.c_str());
+                // 2. AKTUALIZACJA TYTUŁU OKNA (Teraz HUD)
                 player.update();
                 enemy.update(player.getX(), player.getY());
 
@@ -621,6 +732,7 @@ int main(int argc, char* argv[]) {
                     }
                 }
             }
+
             SDL_SetRenderDrawColor(renderer, 34, 139, 34, 255);
             SDL_RenderClear(renderer);
 
@@ -628,7 +740,6 @@ int main(int argc, char* argv[]) {
             for (int r = 0; r < MAP_ROWS; r++) {
                 for (int c = 0; c < MAP_COLS; c++) {
                     SDL_Rect tileRect = { c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, TILE_SIZE };
-
                     if (maze[r][c] == 1) {
                         // Jeli to pole jest cian (tekstura0)
                         if (wallTexture) SDL_RenderCopy(renderer, wallTexture, NULL, &tileRect);
@@ -665,10 +776,7 @@ int main(int argc, char* argv[]) {
                     else if (b.type == SLOW_ENEMY && slowTexture) SDL_RenderCopy(renderer, slowTexture, NULL, &b.rect);
                     else if (b.type == FREEZE && freezeTexture) SDL_RenderCopy(renderer, freezeTexture, NULL, &b.rect);
                     else {
-                        if (b.type == SPEED_UP) SDL_SetRenderDrawColor(renderer, 255, 165, 0, 255);
-                        else if (b.type == INVINCIBLE) SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255);
-                        else if (b.type == SLOW_ENEMY) SDL_SetRenderDrawColor(renderer, 139, 69, 19, 255);
-                        else if (b.type == FREEZE) SDL_SetRenderDrawColor(renderer, 0, 255, 255, 255);
+                        SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255);
                         SDL_RenderFillRect(renderer, &b.rect);
                     }
                 }
@@ -676,15 +784,65 @@ int main(int argc, char* argv[]) {
 
             player.draw(renderer);
             enemy.draw(renderer);
-            // Rysowanie napisu testowego "SDL_ttf dziala!"
-            if (texture) {
-                SDL_RenderCopy(renderer, texture, NULL, &dstRect);
+
+            // --- UI W GRZE (HUD) ---
+
+            // 1. Nazwa i Punkty (Góra-Lewo)
+            std::string hudTop = playerName + " | PKT: " + std::to_string(aktualnePunkty) + " | REKORD: " + std::to_string(rekordZycia);
+
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+            SDL_SetRenderDrawColor(renderer, 0, 0, 0, 150);
+            SDL_Rect bgRect = { 5, 5, (int)hudTop.length() * 12 + 20, 30 };
+            SDL_RenderFillRect(renderer, &bgRect);
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+
+            rysujTekst(renderer, fontUI, hudTop, 10, 10, { 255, 255, 255 });
+
+            // 2. Aktywny Booster (Dół-Lewo)
+            std::string boosterText = "";
+            SDL_Texture* activeIcon = nullptr;
+            float timeRem = 0;
+
+            if (player.isInvincible()) {
+                activeIcon = shieldTexture;
+                boosterText = "TARCZA";
+                timeRem = player.getInvincibleRemainingTime();
             }
+            else if (player.isSpeedUp()) {
+                activeIcon = speedTexture;
+                boosterText = "TURBO";
+                timeRem = player.getSpeedRemainingTime();
+            }
+            else if (enemy.isFrozen()) {
+                activeIcon = freezeTexture;
+                boosterText = "MROZ";
+                timeRem = enemy.getFreezeRemainingTime();
+            }
+            else if (enemy.isSlowed()) {
+                activeIcon = slowTexture;
+                boosterText = "BLOTO";
+                timeRem = enemy.getSlowRemainingTime();
+            }
+
+            if (timeRem > 0) {
+                if (activeIcon) {
+                    SDL_Rect iconRect = { 20, SCREEN_HEIGHT - 60, 40, 40 };
+                    SDL_RenderCopy(renderer, activeIcon, NULL, &iconRect);
+                }
+                std::stringstream ss;
+                ss << boosterText << " " << std::fixed << std::setprecision(1) << timeRem << "s";
+                rysujTekst(renderer, fontUI, ss.str(), 70, SCREEN_HEIGHT - 50, { 255, 255, 0 });
+            }
+
             if (gameOver) {
                 SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
                 SDL_SetRenderDrawColor(renderer, 255, 0, 0, 150);
                 SDL_Rect fullScreen = { 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT };
                 SDL_RenderFillRect(renderer, &fullScreen);
+                SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+
+                rysujTekstWycentrowany(renderer, fontTitle, "KONIEC GRY", SCREEN_HEIGHT / 2 - 50, { 255, 255, 255 });
+                rysujTekstWycentrowany(renderer, fontUI, "Nacisnij ESC aby wrocic do menu", SCREEN_HEIGHT / 2 + 20, { 255, 255, 255 });
             }
         }
         SDL_RenderPresent(renderer);
@@ -705,9 +863,10 @@ int main(int argc, char* argv[]) {
     // Sprzątanie tekstur postaci
     SDL_DestroyTexture(playerTexture);
     SDL_DestroyTexture(enemyTexture);
-    SDL_DestroyTexture(texture); // Usuń teksturę napisu testowego
-    TTF_CloseFont(font);         // Zamknij czcionkę
-    TTF_Quit();                  // Wyłącz system czcionek
+
+    TTF_CloseFont(fontUI);
+    TTF_CloseFont(fontTitle);
+    TTF_Quit();
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
