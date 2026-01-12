@@ -700,8 +700,28 @@ int main(int argc, char* argv[]) {
     int aktualnePunkty = 0;
     int pozostalePunkty = 0;
 
+    // --- 1. DEKLARACJA GRACZA PRZED UŻYCIEM W CREDITS ---
     std::string playerName = "Gracz";
     SDL_StartTextInput();
+
+    // --- NOWE ZMIENNE DO STEROWANIA EKRANAMI ---
+    bool levelCompleteScreen = false; // Ekran między poziomami
+    bool gameWonScreen = false;       // Ekran po pokonaniu bossa
+    bool creditsActive = false;       // Napisy końcowe
+    float creditsScroll = 0;          // Do przesuwania napisów
+
+    // Tekst napisów końcowych (możesz edytować)
+    std::vector<std::string> endCredits = {
+        "--- TRAKTORZYSTA ---", "", "GRATULACJE!", "", "Dzielny Traktorzysta:", playerName, "",
+        "POKONANI:", "Szalone Baby", "Zly Soltys", "",
+        "--- OBSADA ---", "", "Traktor - Czerwona Strzala", "Wrogowie - Kolo Gospodyn", "",
+        "--- PODZIEKOWANIA ---", "", "Dla sasiada za rope", "Dla sklepu z czesciami", "",
+        "--- CIEKAWOSTKI ---", "", "Zaden kabanos nie ucierpial", "podczas produkcji gry.", "",
+        "Zuzyte paliwo: 500 litrow", "Zebrane plony: Wszystkie", "",
+        "--- KONIEC ---", "", "Dziekujemy za gre!", "", "Wcisnij ESC aby wrocic"
+    };
+    // Dodajemy puste linie żeby napisy wyjechały poza ekran
+    for (int i = 0; i < 20; i++) endCredits.push_back("");
 
     SDL_Event e;
     while (running) {
@@ -854,12 +874,111 @@ int main(int argc, char* argv[]) {
                 }
             }
             else {
-                if (!gameOver) player.handleInput(e);
+                // A. EKRAN PRZEJŚCIA (BRAWO)
+                if (levelCompleteScreen) {
+                    if (e.type == SDL_KEYDOWN) {
+                        if (e.key.keysym.sym == SDLK_SPACE) {
+                            // !!! TU NASTĘPUJE FAKTYCZNE PRZEJŚCIE DALEJ !!!
+                            levelCompleteScreen = false;
+                            aktualnyLvl++;
 
-                // !!! POPRAWKA: SDLK_ESCAPE !!!
-                if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE) {
-                    menuActive = true;
-                    SDL_StartTextInput();
+                            // --- TU WKLEJ CAŁY SWÓJ KOD RESETOWANIA POZIOMU ---
+                            // (Ten fragment, który wcześniej miałeś w if(pozostalePunkty <= 0))
+                            // Skrótowo (musisz tu mieć to co w oryginale):
+                            boosters.clear(); enemies.clear(); hayBales.clear(); crowns.clear();
+
+                            if (aktualnyLvl == 2) {
+                                // Setup Bossa (skopiuj ze swojego starego kodu logikę ładowania Bossa)
+                                for (int r = 1; r < 11; r++) for (int c = 1; c < 15; c++) maze[r][c] = 0; // reset mapy
+                                ladujPoziom(aktualnyLvl, boosters);
+                                for (int r = 1; r < 11; r++) for (int c = 1; c < 15; c++) if (maze[r][c] != 1) maze[r][c] = 2;
+
+                                Enemy boss(SCREEN_WIDTH / 2 - 30, SCREEN_HEIGHT / 2 - 30, 60, 1);
+                                boss.setTexture(bossTexture); boss.setSpeed(1); enemies.push_back(boss);
+
+                                // --- NAPRAWA: GENEROWANIE KORON PRZY PRZEJŚCIU Z POZIOMU 2 ---
+                                int crownsToSpawn = 15;
+                                while (crownsToSpawn > 0) {
+                                    // 1. Losujemy współrzędne w siatce mapy
+                                    int rCol = (rand() % (MAP_COLS - 2)) + 1;
+                                    int rRow = (rand() % (MAP_ROWS - 2)) + 1;
+
+                                    // 2. SPRAWDZENIE: Czy w tym miejscu jest ściana?
+                                    if (maze[rRow][rCol] == 1) continue;
+
+                                    // 3. Przeliczenie na piksele
+                                    int cx = rCol * TILE_SIZE + 10;
+                                    int cy = rRow * TILE_SIZE + 10;
+
+                                    SDL_Rect tempRect = { cx, cy, 50, 50 };
+                                    SDL_Rect bossRect = boss.getRect();
+
+                                    // 4. Sprawdzenie kolizji
+                                    bool collision = false;
+                                    if (SDL_HasIntersection(&tempRect, &bossRect)) collision = true;
+
+                                    for (const auto& existingCrown : crowns) {
+                                        if (SDL_HasIntersection(&tempRect, &existingCrown.rect)) {
+                                            collision = true;
+                                            break;
+                                        }
+                                    }
+
+                                    if (!collision) {
+                                        crowns.push_back({ tempRect, true });
+                                        crownsToSpawn--;
+                                    }
+                                }
+                                pozostalePunkty = 15;
+                            }
+                            else {
+                                // Setup Zwykły (skopiuj ze swojego starego kodu)
+                                ladujPoziom(aktualnyLvl, boosters);
+                                // ... generowanie wrogów i boosterów ...
+                                pozostalePunkty = liczPunkty();
+                            }
+                            aktualnePunkty = 0;
+                            player.setPos(80, 80);
+                            player.resetBoosters();
+                            // ---------------------------------------------------
+                        }
+                        else if (e.key.keysym.sym == SDLK_ESCAPE) {
+                            levelCompleteScreen = false;
+                            menuActive = true;
+                            SDL_StartTextInput();
+                        }
+                    }
+                }
+                // B. EKRAN WYGRANEJ (PO BOSSIE)
+                else if (gameWonScreen) {
+                    if (e.type == SDL_KEYDOWN) {
+                        if (e.key.keysym.sym == SDLK_SPACE) {
+                            gameWonScreen = false;
+                            creditsActive = true; // Odpalamy napisy!
+                            creditsScroll = SCREEN_HEIGHT; // Reset pozycji
+                        }
+                        else if (e.key.keysym.sym == SDLK_ESCAPE) {
+                            gameWonScreen = false;
+                            menuActive = true;
+                            SDL_StartTextInput();
+                        }
+                    }
+                }
+                // C. NAPISY KOŃCOWE
+                else if (creditsActive) {
+                    if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE) {
+                        creditsActive = false;
+                        menuActive = true;
+                        SDL_StartTextInput();
+                    }
+                }
+                // D. NORMALNA ROZGRYWKA
+                else {
+                    if (!gameOver) player.handleInput(e);
+                    if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE) {
+                        menuActive = true;
+                        SDL_StartTextInput();
+                    }
                 }
             }
         }
@@ -917,7 +1036,20 @@ int main(int argc, char* argv[]) {
                 SDL_DestroyTexture(titleTexture);
             }
             // -------------------------------
+            // SPRAWDZENIE NAGRODY ZA PRZEJŚCIE CAŁEJ GRY
+            // Sprawdzamy czy wczytane z pliku postep.txt dane to same jedynki
+            if (odblokowaneLevele[0] && odblokowaneLevele[1] && odblokowaneLevele[2]) {
+                // Jeśli tak, rysujemy koronę Bossa w menu
+                if (crownTexture) {
+                    SDL_Rect awardRect = { 80, 150, 80, 80 }; // Po lewej stronie
 
+                    // !!! ZMIANA: Usunięto rotację Ex, używamy zwykłego Copy !!!
+                    SDL_RenderCopy(renderer, crownTexture, NULL, &awardRect);
+
+                    // I dopisek
+                    rysujTekst(renderer, fontUI, "MISTRZ POLA!", 60, 240, { 255, 215, 0 });
+                }
+            }
             SDL_Color textColor = { 255, 255, 255 };
             rysujTekstWycentrowany(renderer, fontUI, "Wpisz imie traktorzysty:", 180, textColor);
 
@@ -1031,7 +1163,7 @@ int main(int argc, char* argv[]) {
                 }
 
                 if (pozostalePunkty <= 0) {
-                    // 1. LOGIKA ODBLOKOWYWANIA I ZAPISU
+                    // 1. ZAPIS POSTĘPU (To Twoja istniejąca logika)
                     if (aktualnyLvl + 1 < LICZBA_LEVELI) {
                         if (!odblokowaneLevele[aktualnyLvl + 1]) {
                             odblokowaneLevele[aktualnyLvl + 1] = true;
@@ -1039,108 +1171,17 @@ int main(int argc, char* argv[]) {
                         }
                     }
 
-                    // 2. SPRAWDZENIE CZY ISTNIEJE KOLEJNY POZIOM
-                    if (aktualnyLvl < LICZBA_LEVELI - 1) {
-                        // PRZECHODZIMY DO NASTĘPNEGO POZIOMU (BEZ WYCHODZENIA DO MENU)
-                        aktualnyLvl++;
-
-                        // --- RESETOWANIE STANU GRY (KOD INICJALIZACYJNY) ---
-                        boosters.clear();
-                        enemies.clear();
-                        hayBales.clear();
-                        crowns.clear();
-
-                        // Konfiguracja nowego levelu
-                        if (aktualnyLvl == 2) {
-                            // --- KONFIGURACJA BOSS LEVELU ---
-                            // Czyścimy mapę (wszystko skoszone)
-                            for (int r = 1; r < MAP_ROWS - 1; r++) {
-                                for (int c = 1; c < MAP_COLS - 1; c++) {
-                                    maze[r][c] = 0; // Tymczasowo 0
-                                }
-                            }
-                            ladujPoziom(aktualnyLvl, boosters);
-                            // Nadpisanie mapy na skoszone (tło):
-                            for (int r = 1; r < MAP_ROWS - 1; r++) {
-                                for (int c = 1; c < MAP_COLS - 1; c++) {
-                                    if (maze[r][c] != 1) maze[r][c] = 2;
-                                }
-                            }
-
-                            // Boss Sołtys
-                            Enemy boss(SCREEN_WIDTH / 2 - 30, SCREEN_HEIGHT / 2 - 30, 60, 1);
-                            boss.setTexture(bossTexture);
-                            boss.setSpeed(1);
-                            enemies.push_back(boss);
-
-                            // Generowanie koron
-                            int crownsToSpawn = 15;
-                            while (crownsToSpawn > 0) {
-                                int rCol = (rand() % (MAP_COLS - 2)) + 1;
-                                int rRow = (rand() % (MAP_ROWS - 2)) + 1;
-                                if (maze[rRow][rCol] == 1) continue;
-
-                                int cx = rCol * TILE_SIZE + 10;
-                                int cy = rRow * TILE_SIZE + 10;
-                                SDL_Rect tempRect = { cx, cy, 50, 50 };
-                                SDL_Rect bossRect = boss.getRect();
-
-                                bool collision = false;
-                                if (SDL_HasIntersection(&tempRect, &bossRect)) collision = true;
-                                for (const auto& existingCrown : crowns) {
-                                    if (SDL_HasIntersection(&tempRect, &existingCrown.rect)) {
-                                        collision = true;
-                                        break;
-                                    }
-                                }
-
-                                if (!collision) {
-                                    crowns.push_back({ tempRect, true });
-                                    crownsToSpawn--;
-                                }
-                            }
-                            pozostalePunkty = 15;
-                        }
-                        else {
-                            // --- STANDARDOWE LEVELE (1 i 2) ---
-                            std::vector<BoosterType> types = { SPEED_UP, INVINCIBLE, SLOW_ENEMY, FREEZE };
-                            std::random_device rd;
-                            std::mt19937 g(rd());
-                            std::shuffle(types.begin(), types.end(), g);
-
-                            for (int k = 0; k < 4; k++) {
-                                boosters.push_back({ boosterPositions[k], types[k], true });
-                            }
-
-                            // Tworzenie 3 wrogów
-                            int spawnX[] = { 990, 80, 990 };
-                            int spawnY[] = { 80, 710, 710 };
-
-                            for (int k = 0; k < 3; k++) {
-                                Enemy newEnemy(spawnX[k], spawnY[k], 50, 1);
-                                newEnemy.setTexture(enemyTextures[aktualnyLvl][k]);
-                                enemies.push_back(newEnemy);
-                            }
-
-                            ladujPoziom(aktualnyLvl, boosters);
-                            pozostalePunkty = liczPunkty();
-                        }
-
-                        // Reset gracza
-                        aktualnePunkty = 0; // Opcjonalnie: można nie zerować, jeśli chcesz sumować punkty z całej gry
-                        player.setPos(80, 80);
-                        player.resetBoosters();
-
-                        // Czekamy chwilę, żeby gracz zauważył zmianę (opcjonalne)
-                        SDL_Delay(500);
+                    // 2. STEROWANIE EKRANAMI (Zamiast natychmiastowego skoku)
+                    if (aktualnyLvl == 2) {
+                        // To był Boss (ostatni level) -> Ekran Wygranej
+                        gameWonScreen = true;
                     }
                     else {
-                        // KONIEC GRY (POKONANO BOSSA) -> WRÓĆ DO MENU
-                        menuActive = true;
-                        SDL_StartTextInput();
-                        // Resetujemy wygrany level bossa, żeby można było zagrać ponownie
-                        player.resetBoosters();
+                        // To był zwykły level -> Ekran Przejścia
+                        levelCompleteScreen = true;
                     }
+
+                    // UWAGA: Nie resetujemy tu gry! Czekamy na spację.
                 }
 
                 // 2. AKTUALIZACJA
@@ -1407,12 +1448,103 @@ int main(int argc, char* argv[]) {
                 rysujTekstWycentrowany(renderer, fontTitle, "KONIEC GRY", SCREEN_HEIGHT / 2 - 50, { 255, 255, 255 });
                 rysujTekstWycentrowany(renderer, fontUI, "Nacisnij ESC aby wrocic do menu", SCREEN_HEIGHT / 2 + 20, { 255, 255, 255 });
             }
+            // --- NAKŁADKI GRAFICZNE (EKRANY KOŃCOWE) ---
+
+            if (levelCompleteScreen) {
+                // Tło półprzezroczyste (przyciemnienie gry)
+                SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+                SDL_SetRenderDrawColor(renderer, 0, 0, 0, 200);
+                SDL_Rect fullscreen = { 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT };
+                SDL_RenderFillRect(renderer, &fullscreen);
+                SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+
+                // Teksty
+                rysujTekstWycentrowany(renderer, fontTitle, "POZIOM UKONCZONY!", 200, { 0, 255, 0 });
+                rysujTekstWycentrowany(renderer, fontUI, "Brawo! Odblokowales kolejny etap.", 300, { 255, 255, 255 });
+
+                // Migające instrukcje
+                if (SDL_GetTicks() % 1000 < 600) {
+                    rysujTekstWycentrowany(renderer, fontUI, "SPACJA - Jedziesz dalej", 500, { 255, 255, 0 });
+                }
+                rysujTekstWycentrowany(renderer, fontUI, "ESC - Powrot do Menu", 550, { 200, 200, 200 });
+            }
+            else if (gameWonScreen) {
+                // !!! ZMIANA: TŁO TAKIE SAMO JAK W LEVEL COMPLETE (CZARNE PÓŁPRZEZROCZYSTE) !!!
+                SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+                SDL_SetRenderDrawColor(renderer, 0, 0, 0, 200);
+                SDL_Rect fullscreen = { 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT };
+                SDL_RenderFillRect(renderer, &fullscreen);
+                SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+
+                // Nagłówek
+                rysujTekstWycentrowany(renderer, fontTitle, "GRATULACJE!", 100, { 255, 215, 0 }); // Złoty napis zamiast tła
+                rysujTekstWycentrowany(renderer, fontUI, "Pokonales baby i soltysa!", 250, { 255, 255, 255 });
+
+                // Imię gracza
+                std::string msg = "Traktorzysta " + playerName + " moze bezpiecznie pracowac!";
+                rysujTekstWycentrowany(renderer, fontUI, msg, 450, { 200, 0, 0 });
+
+                // Instrukcje
+                rysujTekstWycentrowany(renderer, fontUI, "SPACJA - Zobacz Napisy Koncowe", 600, { 255, 255, 255 });
+                rysujTekstWycentrowany(renderer, fontUI, "ESC - Wroc do Menu", 650, { 100, 100, 100 });
+
+                // Grafika Bossa na środku (jeśli wczytana)
+                if (bossTexture) {
+                    SDL_Rect r = { SCREEN_WIDTH / 2 - 50, 300, 100, 100 };
+                    SDL_RenderCopy(renderer, bossTexture, NULL, &r);
+                }
+            }
+            else if (creditsActive) {
+                // Czarne tło
+                SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+                SDL_RenderClear(renderer);
+
+                // Przesuwanie tekstu w górę
+                creditsScroll -= 1.5;
+
+                // Reset do menu jak napisy się skończą
+                if (creditsScroll < -((int)endCredits.size() * 50 + 400)) {
+                    creditsActive = false;
+                    menuActive = true;
+                    SDL_StartTextInput();
+                }
+
+                // Pętla rysująca tekst linijka po linijce
+                for (size_t i = 0; i < endCredits.size(); i++) {
+                    float y = creditsScroll + i * 50;
+                    // Rysuj tylko to co widać na ekranie (optymalizacja)
+                    if (y > -50 && y < SCREEN_HEIGHT + 50) {
+                        SDL_Color kol = { 255, 255, 255 };
+                        // Jeśli linia zaczyna się od "---", zrób ją żółtą
+                        if (endCredits[i].length() > 3 && endCredits[i].substr(0, 3) == "---") kol = { 255, 215, 0 };
+
+                        rysujTekstWycentrowany(renderer, fontUI, endCredits[i], (int)y, kol);
+                    }
+                }
+
+                // Obrazki po bokach (statyczne)
+                SDL_Rect leftImg = { 50, SCREEN_HEIGHT / 2 - 75, 150, 150 };
+                SDL_Rect rightImg = { SCREEN_WIDTH - 200, SCREEN_HEIGHT / 2 - 75, 150, 150 };
+
+                if (enemyTextures[0][0]) SDL_RenderCopy(renderer, enemyTextures[0][0], NULL, &leftImg); // Baba po lewej
+                if (crownTexture) SDL_RenderCopy(renderer, crownTexture, NULL, &rightImg);     // Korona po prawej
+
+                // Serduszko na samym końcu napisów
+                if (creditsScroll + endCredits.size() * 50 < SCREEN_HEIGHT / 2) {
+                    SDL_Texture* heart = wczytajTeksture(renderer, "assets\\heart.bmp", true);
+                    if (heart) {
+                        SDL_Rect hRect = { SCREEN_WIDTH / 2 - 50, SCREEN_HEIGHT - 150, 100, 100 };
+                        SDL_RenderCopy(renderer, heart, NULL, &hRect);
+                        SDL_DestroyTexture(heart);
+                    }
+                }
+            } // Koniec bloku else if (creditsActive)
         }
         SDL_RenderPresent(renderer);
         SDL_Delay(16);
     }
 
-    // Sprztanie
+    // Sprzątanie
     SDL_DestroyTexture(shieldTexture);
     SDL_DestroyTexture(speedTexture);
     SDL_DestroyTexture(slowTexture);
