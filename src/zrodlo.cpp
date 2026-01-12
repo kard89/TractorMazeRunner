@@ -710,15 +710,18 @@ int main(int argc, char* argv[]) {
     bool creditsActive = false;       // Napisy końcowe
     float creditsScroll = 0;          // Do przesuwania napisów
 
-    // Tekst napisów końcowych (możesz edytować)
+    // Tekst napisów końcowych 
     std::vector<std::string> endCredits = {
-        "--- TRAKTORZYSTA ---", "", "GRATULACJE!", "", "Dzielny Traktorzysta:", playerName, "",
-        "POKONANI:", "Szalone Baby", "Zly Soltys", "",
-        "--- OBSADA ---", "", "Traktor - Czerwona Strzala", "Wrogowie - Kolo Gospodyn", "",
-        "--- PODZIEKOWANIA ---", "", "Dla sasiada za rope", "Dla sklepu z czesciami", "",
-        "--- CIEKAWOSTKI ---", "", "Zaden kabanos nie ucierpial", "podczas produkcji gry.", "",
-        "Zuzyte paliwo: 500 litrow", "Zebrane plony: Wszystkie", "",
-        "--- KONIEC ---", "", "Dziekujemy za gre!", "", "Wcisnij ESC aby wrocic"
+        "--- TRAKTORZYSTA ---", "The Game", "GRATULACJE!", "Udało ci się pokonać baby i sołtysa!", "", "Dzielny Traktorzysta : ", playerName, "",
+        "--- POKONANI ---", "Szalone Baby: 6", "Zly Soltys: 1", "",
+        "--- OBSADA ---", "", "Traktor - Czerwona Strzala", "Koło gospodyń wiejskich", "Sołtys wsi", "Traktorzysta","",
+        "--- PODZIEKOWANIA ---", "", "Dla kobiet za stworzenie koron", "Dla kazdego rolnika", "Dla tutoriali na youtubie","Dla wszystkich testerów gry","",
+        "--- CIEKAWOSTKI ---", "", "Zadna baba nie ucierpiala", "podczas produkcji gry.", "",
+        "Ilosc zuzytej colki zero: Zbyt duza, by policzyc", "Stworzone linie kodu: >1500", "",
+        "--- NOTA PRAWNA ---", "","Wszelkie podobienstwo do prawdziwych","Soltysow jest czysto przypadkowe.","Traktor nie posiada waznego przegladu.","",
+        "--- KADRA ---","Senior Developer: Lena Janik","Junior Developer/Marketing Manager: Bartosz Dumański","CEO/Art Director: Karolina Drost","",
+        "--- PAMIECI BLEDOW ---", "","Ku pamieci buga, przez ktorego","zadna biblioteka nie dzialala","Bo nasza kochana CEO,"," chciala biblioteki w githubie","",
+        "--- KONIEC ---", "", "Dziekujemy za gre!", "", "Wcisnij ESC aby wrocic", "", "", "", "", "", "", "", "", "", "", "", "Specjalne podziekowania dla Google Gemini"
     };
     // Dodajemy puste linie żeby napisy wyjechały poza ekran
     for (int i = 0; i < 20; i++) endCredits.push_back("");
@@ -953,6 +956,8 @@ int main(int argc, char* argv[]) {
                 else if (gameWonScreen) {
                     if (e.type == SDL_KEYDOWN) {
                         if (e.key.keysym.sym == SDLK_SPACE) {
+                            // Aktualizujemy imię w wektorze napisów (indeks 6 to miejsce, gdzie wstawiłeś playerName)
+                            endCredits[6] = playerName;
                             gameWonScreen = false;
                             creditsActive = true; // Odpalamy napisy!
                             creditsScroll = SCREEN_HEIGHT; // Reset pozycji
