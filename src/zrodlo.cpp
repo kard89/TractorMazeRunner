@@ -876,7 +876,23 @@ int main(int argc, char* argv[]) {
                     }
                 }
             }
+            if (tractorOptions.size() > 6 && tractorOptions[6].texture) {
+                // Upewniamy się, że kolor jest oryginalny (brak modyfikacji koloru)
+                SDL_SetTextureColorMod(tractorOptions[6].texture, 255, 255, 255);
 
+                // Ustawiamy bardzo duży rozmiar (np. 800x800)
+                int bigSize = 800;
+                SDL_Rect bigTractorRect;
+                bigTractorRect.w = bigSize;
+                bigTractorRect.h = bigSize;
+
+                // Centrujemy go na ekranie
+                bigTractorRect.x = (SCREEN_WIDTH - bigSize) / 2;
+                bigTractorRect.y = (SCREEN_HEIGHT - bigSize) / 2;
+
+                // Rysujemy zawsze czerwony traktor
+                SDL_RenderCopy(renderer, tractorOptions[6].texture, NULL, &bigTractorRect);
+            }
             // --- TŁO MENU (PRZYCIEMNIENIE) ---
             SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
             SDL_SetRenderDrawColor(renderer, 0, 0, 0, 180);
