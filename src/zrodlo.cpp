@@ -643,9 +643,9 @@ int main(int argc, char* argv[]) {
     boosters.push_back({ {995, 85, 40, 40}, FREEZE, true });
 
     //System Poziomow 
-    bool odblokowaneLevele[3];
+    bool odblokowaneLevele[4];
     // WCZYTUJEMY STAN Z PLIKU
-    wczytajPostep(odblokowaneLevele, 3);
+    wczytajPostep(odblokowaneLevele, 4);
 
     SDL_Rect przyciskiMenu[3];
     int sqSize = 220;
@@ -1063,8 +1063,7 @@ int main(int argc, char* argv[]) {
             // -------------------------------
             // SPRAWDZENIE NAGRODY ZA PRZEJŚCIE CAŁEJ GRY
             // Sprawdzamy czy wczytane z pliku postep.txt dane to same jedynki
-            if (odblokowaneLevele[0] && odblokowaneLevele[1] && odblokowaneLevele[2]) {
-                // Jeśli tak, rysujemy koronę Bossa w menu
+            if (odblokowaneLevele[0] && odblokowaneLevele[1] && odblokowaneLevele[2] && odblokowaneLevele[3]) {// Jeśli tak, rysujemy koronę Bossa w menu
                 if (crownTexture) {
                     SDL_Rect awardRect = { 80, 150, 80, 80 }; // Po lewej stronie
 
@@ -1164,7 +1163,7 @@ int main(int argc, char* argv[]) {
             }
         }
         else {
-            if (!gameOver && !levelCompleteScreen && !gameWonScreen) {
+            if (!gameOver && !levelCompleteScreen && !gameWonScreen && !creditsActive) {
 
                 // LOGIKA PUNKTÓW DLA BOSSA
                 if (aktualnyLvl == 2) {
@@ -1188,11 +1187,20 @@ int main(int argc, char* argv[]) {
                 }
 
                 if (pozostalePunkty <= 0) {
-                    // 1. ZAPIS POSTĘPU (To Twoja istniejąca logika)
+                    // 1. ZAPIS POSTĘPU
                     if (aktualnyLvl + 1 < LICZBA_LEVELI) {
+                        // Odblokowanie kolejnego poziomu (np. z 1 na 2, z 2 na 3)
                         if (!odblokowaneLevele[aktualnyLvl + 1]) {
                             odblokowaneLevele[aktualnyLvl + 1] = true;
-                            zapiszPostep(odblokowaneLevele, 3); // Zapis do pliku
+                            zapiszPostep(odblokowaneLevele, 4); // ZMIANA: rozmiar 4
+                        }
+                    }
+                    else if (aktualnyLvl == 2) {
+                        // --- NOWOŚĆ: JEŚLI POKONANO BOSSA (LEVEL 3 / INDEKS 2) ---
+                        // Ustawiamy czwartą wartość (indeks 3) na true
+                        if (!odblokowaneLevele[3]) {
+                            odblokowaneLevele[3] = true;
+                            zapiszPostep(odblokowaneLevele, 4); // Zapisujemy komplet 1 1 1 1
                         }
                     }
 
@@ -1550,15 +1558,7 @@ int main(int argc, char* argv[]) {
                 if (enemyTextures[0][0]) SDL_RenderCopy(renderer, enemyTextures[0][0], NULL, &leftImg); // Baba po lewej
                 if (crownTexture) SDL_RenderCopy(renderer, crownTexture, NULL, &rightImg);     // Korona po prawej
 
-                // Serduszko na samym końcu napisów
-                if (creditsScroll + endCredits.size() * 50 < SCREEN_HEIGHT / 2) {
-                    SDL_Texture* heart = wczytajTeksture(renderer, "assets\\heart.bmp", true);
-                    if (heart) {
-                        SDL_Rect hRect = { SCREEN_WIDTH / 2 - 50, SCREEN_HEIGHT - 150, 100, 100 };
-                        SDL_RenderCopy(renderer, heart, NULL, &hRect);
-                        SDL_DestroyTexture(heart);
-                    }
-                }
+                
             } // Koniec bloku else if (creditsActive)
         }
         SDL_RenderPresent(renderer);
