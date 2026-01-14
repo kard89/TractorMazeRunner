@@ -10,47 +10,56 @@
 #include <iomanip>
 #include <sstream>
 #include <SDL_ttf.h>
-#include <random>   // Generator liczb losowych
+#include <random>   // Generator liczb losowych (np. dla boosterów)
 
 // --- STAŁE KONFIGURACYJNE ---
-const int SCREEN_WIDTH = 1120; // Szerokość okna (16 kratek * 70 px)
-const int SCREEN_HEIGHT = 840; // Wysokość okna (12 kratek * 70 px)
-const int TILE_SIZE = 70;      // Rozmiar jednej kratki na mapie
-const int MAP_ROWS = 12;       // Liczba wierszy mapy
-const int MAP_COLS = 16;       // Liczba kolumn mapy
+// Wymiary okna są obliczone na podstawie siatki gry:
+// 16 kolumn * 70 pikseli = 1120 szerokości
+// 12 wierszy * 70 pikseli = 840 wysokości
+const int SCREEN_WIDTH = 1120;
+const int SCREEN_HEIGHT = 840;
+const int TILE_SIZE = 70;      // Rozmiar jednej kratki na mapie (kwadrat 70x70)
+const int MAP_ROWS = 12;       // Liczba wierszy w siatce mapy
+const int MAP_COLS = 16;       // Liczba kolumn w siatce mapy
 const int LICZBA_LEVELI = 3;   // Całkowita liczba poziomów w grze
 
 // --- STRUKTURY DLA POZIOMU Z BOSSEM ---
+// Struktura reprezentująca spadającą belę siana
 struct HayBale {
-    SDL_Rect rect; // Pozycja i wymiary beli siana
-    float y;       // Dokładna pozycja pionowa (dla płynnego spadania)
-    float speed;   // Prędkość spadania
+    SDL_Rect rect; // Przechowuje pozycję X, Y oraz szerokość i wysokość beli
+    float y;       // Przechowuje dokładną pozycję pionową (float pozwala na płynniejszy ruch niż int)
+    float speed;   // Prędkość spadania (o ile pikseli przesuwa się w dół w każdej klatce)
 };
 
+// Struktura reprezentująca koronę do zebrania (punkty u Bossa)
 struct Crown {
-    SDL_Rect rect; // Pozycja korony
-    bool active;   // Czy korona jest jeszcze na planszy
+    SDL_Rect rect; // Pozycja i wymiary korony
+    bool active;   // Flaga: true = korona leży na mapie, false = została zebrana
 };
 
 // --- STRUKTURA DO MENU WYBORU KOLORU ---
+// Przechowuje dane potrzebne do wyświetlenia przycisku wyboru koloru w menu
 struct TractorOption {
-    std::string filename;    // Ścieżka do pliku graficznego
-    SDL_Color colorRGB;      // Kolor przycisku w menu
-    SDL_Texture* texture;    // Załadowana tekstura traktora
+    std::string filename;    // Ścieżka do pliku graficznego z teksturą traktora
+    SDL_Color colorRGB;      // Kolor przycisku w menu (dla wizualizacji)
+    SDL_Texture* texture;    // Wskaźnik na załadowaną teksturę (obrazek) w pamięci karty graficznej
 };
 
 // --- STRUKTURA DOPALACZY (BOOSTERÓW) ---
+// Typ wyliczeniowy (enum) ułatwia rozróżnianie rodzajów bonusów w kodzie
 enum BoosterType { SPEED_UP, INVINCIBLE, SLOW_ENEMY, FREEZE, NONE };
 
 struct Booster {
-    SDL_Rect rect;    // Pozycja boostera
-    BoosterType type; // Rodzaj efektu
-    bool active;      // Czy booster leży na ziemi
+    SDL_Rect rect;    // Obszar, który zajmuje booster na mapie
+    BoosterType type; // Rodzaj efektu, jaki wywoła (np. zamrożenie wrogów)
+    bool active;      // Czy booster jest widoczny i możliwy do zebrania
 };
 
-// --- DANE MAP (1 = Ściana, 0 = Zboże) ---
+// --- DANE MAP (1 = Ściana/Trawa, 0 = Zboże do skoszenia) ---
+// Trójwymiarowa tablica przechowująca układ wszystkich poziomów.
+// [Numer Levelu] [Wiersz] [Kolumna]
 int mazeLevels[LICZBA_LEVELI][MAP_ROWS][MAP_COLS] = {
-    {   // POZIOM 1
+    {   // POZIOM 1: Klasyczny labirynt
         {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
         {1,0,0,0,1,0,0,0,0,0,0,0,1,0,0,1},
         {1,0,1,0,1,0,1,1,0,1,1,0,1,0,1,1},
@@ -64,7 +73,7 @@ int mazeLevels[LICZBA_LEVELI][MAP_ROWS][MAP_COLS] = {
         {1,0,0,0,1,1,1,1,0,1,1,1,0,0,0,1},
         {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}
     },
-    {   // POZIOM 2
+    {   // POZIOM 2: Bardziej otwarty układ
         {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
         {1,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1},
         {1,0,1,1,0,1,0,0,0,0,1,0,1,1,0,1},
@@ -78,7 +87,7 @@ int mazeLevels[LICZBA_LEVELI][MAP_ROWS][MAP_COLS] = {
         {1,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1},
         {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}
     },
-    {   // POZIOM 3 (BOSS) - Pusta arena
+    {   // POZIOM 3 (BOSS): Arena z przeszkodami
         {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
         {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
         {1,0,0,1,1,0,0,0,0,0,0,1,1,0,0,1},
@@ -94,9 +103,12 @@ int mazeLevels[LICZBA_LEVELI][MAP_ROWS][MAP_COLS] = {
     }
 };
 
-int maze[MAP_ROWS][MAP_COLS]; // Aktualnie załadowana mapa (tutaj dokonujemy zmian w trakcie gry)
+// Aktualnie załadowana mapa w pamięci.
+// To na tej tablicy gra operuje (zmienia 0 na 2 po skoszeniu).
+int maze[MAP_ROWS][MAP_COLS];
 
-// Kopiuje mapę z wzorca do zmiennej roboczej i resetuje boostery
+// Funkcja kopiuje wybrany poziom z tablicy stałej `mazeLevels` do tablicy roboczej `maze`.
+// Przy okazji resetuje wszystkie boostery, aby były aktywne na nowym poziomie.
 void ladujPoziom(int nr, std::vector<Booster>& bst) {
     for (int r = 0; r < MAP_ROWS; r++) {
         for (int c = 0; c < MAP_COLS; c++) {
@@ -106,7 +118,8 @@ void ladujPoziom(int nr, std::vector<Booster>& bst) {
     for (auto& b : bst) b.active = true;
 }
 
-// Zlicza ile pól zboża (wartość 0) zostało do zebrania
+// Funkcja przelicza, ile jeszcze zostało "nieskoszonego zboża" (pól o wartości 0).
+// Jest używana do sprawdzenia warunku zwycięstwa.
 int liczPunkty() {
     int p = 0;
     for (int r = 0; r < MAP_ROWS; r++)
@@ -115,7 +128,9 @@ int liczPunkty() {
     return p;
 }
 
-// Rysuje tekst w podanym miejscu (X, Y)
+// Pomocnicza funkcja do rysowania tekstu na ekranie.
+// SDL_ttf wymaga stworzenia powierzchni (Surface), zamiany na teksturę i narysowania.
+// Funkcja robi to wszystko i od razu czyści pamięć po tymczasowych obiektach.
 void rysujTekst(SDL_Renderer* renderer, TTF_Font* font, std::string tekst, int x, int y, SDL_Color kolor) {
     if (tekst.empty()) return;
     SDL_Surface* surface = TTF_RenderText_Solid(font, tekst.c_str(), kolor);
@@ -123,29 +138,30 @@ void rysujTekst(SDL_Renderer* renderer, TTF_Font* font, std::string tekst, int x
         SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
         SDL_Rect rect = { x, y, surface->w, surface->h };
         SDL_RenderCopy(renderer, texture, NULL, &rect);
-        SDL_FreeSurface(surface);
-        SDL_DestroyTexture(texture);
+        SDL_FreeSurface(surface);   // Ważne: zwalnianie pamięci RAM
+        SDL_DestroyTexture(texture); // Ważne: zwalnianie pamięci VRAM
     }
 }
 
-// Rysuje tekst wyśrodkowany poziomo na ekranie
+// Funkcja centrująca tekst w poziomie (przydatna do menu i napisów końcowych).
+// Oblicza szerokość tekstu i ustawia X tak, by był na środku ekranu.
 void rysujTekstWycentrowany(SDL_Renderer* renderer, TTF_Font* font, std::string tekst, int y, SDL_Color kolor) {
     if (tekst.empty()) return;
     int w, h;
-    TTF_SizeText(font, tekst.c_str(), &w, &h);
+    TTF_SizeText(font, tekst.c_str(), &w, &h); // Zmierzenie wymiarów tekstu
     rysujTekst(renderer, font, tekst, (SCREEN_WIDTH - w) / 2, y, kolor);
 }
 
 // --- KLASA GRACZA (TRAKTOR) ---
 class Player {
 private:
-    SDL_Rect rect;       // Pozycja i wymiary
-    int baseSpeed;       // Prędkość podstawowa
-    int currentSpeed;    // Aktualna prędkość (może być zmieniona przez booster)
-    bool invincible = false; // Czy jest nieśmiertelny
-    Uint32 invincibleTimer = 0;
-    Uint32 speedTimer = 0;
-    SDL_Texture* texture = nullptr; // Grafika gracza
+    SDL_Rect rect;       // Prostokąt gracza (pozycja X, Y, szerokość, wysokość)
+    int baseSpeed;       // Prędkość podstawowa (normalna)
+    int currentSpeed;    // Aktualna prędkość (może być podwojona przez booster)
+    bool invincible = false; // Flaga nieśmiertelności (po zebraniu tarczy)
+    Uint32 invincibleTimer = 0; // Czas do końca nieśmiertelności
+    Uint32 speedTimer = 0;      // Czas do końca przyspieszenia
+    SDL_Texture* texture = nullptr; // Wskaźnik na grafikę gracza
 
 public:
     Player(int x, int y, int size, int moveSpeed) {
@@ -156,41 +172,51 @@ public:
         baseSpeed = moveSpeed;
         currentSpeed = moveSpeed;
     }
+
+    // Ustawia pozycję gracza (np. przy restarcie poziomu)
     void setPos(int x, int y) { rect.x = x; rect.y = y; }
+
+    // Przypisuje teksturę (wygląd) traktora
     void setTexture(SDL_Texture* tex) { texture = tex; }
 
-    // Włącza działanie boostera
+    // Włącza działanie boostera i ustawia czas jego trwania
     void applyBooster(BoosterType type) {
-        Uint32 now = SDL_GetTicks();
+        Uint32 now = SDL_GetTicks(); // Pobranie aktualnego czasu gry w ms
         if (type == SPEED_UP) {
             currentSpeed = baseSpeed * 2;
-            speedTimer = now + 5000; // 5 sekund
+            speedTimer = now + 5000; // Efekt trwa 5000 ms (5 sekund)
         }
         else if (type == INVINCIBLE) {
             invincible = true;
-            invincibleTimer = now + 5000; // 5 sekund
+            invincibleTimer = now + 5000; // Efekt trwa 5000 ms (5 sekund)
         }
     }
 
-    // Obsługa klawiatury i ruchu gracza
+    // Główna funkcja sterowania. Sprawdza klawisze i obsługuje kolizje ze ścianami.
     void handleInput(SDL_Event& e) {
         if (e.type == SDL_KEYDOWN) {
+            // Zapamiętujemy starą pozycję przed ruchem
             int oldX = rect.x;
             int oldY = rect.y;
-            // Ruch
+
+            // Zmiana pozycji w zależności od wciśniętej strzałki
             switch (e.key.keysym.sym) {
             case SDLK_UP: rect.y -= currentSpeed; break;
             case SDLK_DOWN: rect.y += currentSpeed; break;
             case SDLK_LEFT: rect.x -= currentSpeed; break;
             case SDLK_RIGHT: rect.x += currentSpeed; break;
             }
-            // Sprawdzanie kolizji ze ścianami
+
+            // Sprawdzanie kolizji ze ścianami mapy
             for (int r = 0; r < MAP_ROWS; r++) {
                 for (int c = 0; c < MAP_COLS; c++) {
-                    if (maze[r][c] == 1) { // Jeśli ściana
+                    if (maze[r][c] == 1) { // Jeśli pole jest ścianą (wartość 1)
+                        // Tworzymy prostokąt ściany
                         SDL_Rect wall = { c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, TILE_SIZE };
+
+                        // Sprawdzamy czy prostokąt gracza nachodzi na prostokąt ściany
                         if (SDL_HasIntersection(&rect, &wall)) {
-                            // Cofnij ruch jeśli weszliśmy w ścianę
+                            // Jeśli tak, cofamy ruch (anulujemy zmianę pozycji)
                             rect.x = oldX;
                             rect.y = oldY;
                         }
@@ -200,37 +226,39 @@ public:
         }
     }
 
-    // Aktualizacja stanu (czas trwania boosterów, granice ekranu)
+    // Aktualizacja stanu gracza w każdej klatce
     void update() {
         Uint32 now = SDL_GetTicks();
+
+        // Sprawdzamy czy czas boosterów minął
         if (now > speedTimer) currentSpeed = baseSpeed;
         if (now > invincibleTimer) invincible = false;
 
-        // Blokada wyjazdu poza ekran
+        // Blokada wyjazdu poza ekran (żeby gracz nie zniknął)
         if (rect.x < 0) rect.x = 0;
         if (rect.y < 0) rect.y = 0;
         if (rect.x + rect.w > SCREEN_WIDTH) rect.x = SCREEN_WIDTH - rect.w;
         if (rect.y + rect.h > SCREEN_HEIGHT) rect.y = SCREEN_HEIGHT - rect.h;
     }
 
-    // Rysowanie gracza
+    // Rysowanie gracza na ekranie
     void draw(SDL_Renderer* renderer) {
         if (texture) {
-            SDL_SetTextureColorMod(texture, 255, 255, 255); // Reset koloru
+            SDL_SetTextureColorMod(texture, 255, 255, 255); // Reset filtra koloru (rysowanie normalne)
             SDL_RenderCopy(renderer, texture, NULL, &rect);
         }
         else {
-            // Zapasowe rysowanie kwadratu, gdy brak tekstury
-            if (invincible) SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255);
+            // Zapasowe rysowanie kolorowego kwadratu, gdyby tekstura się nie wczytała
+            if (invincible) SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255); // Żółty jak nieśmiertelny
             else SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
             SDL_RenderFillRect(renderer, &rect);
         }
     }
 
-    // Gettery i pomocnicze
+    // Funkcje pomocnicze (gettery) do pobierania danych o graczu
     float getInvincibleRemainingTime() {
         if (SDL_GetTicks() >= invincibleTimer) return 0;
-        return(invincibleTimer - SDL_GetTicks()) / 1000.0f;
+        return(invincibleTimer - SDL_GetTicks()) / 1000.0f; // Zwraca czas w sekundach
     }
     float getSpeedRemainingTime() {
         if (SDL_GetTicks() >= speedTimer) return 0;
@@ -242,6 +270,7 @@ public:
     bool isInvincible() { return invincible; }
     bool isSpeedUp() { return currentSpeed > baseSpeed; }
 
+    // Resetuje wszystkie moce (np. po śmierci lub zmianie poziomu)
     void resetBoosters() {
         currentSpeed = baseSpeed;
         invincible = false;
@@ -250,47 +279,51 @@ public:
     }
 };
 
-// --- KLASA WROGA ---
+// --- KLASA WROGA (PRZECIWNIKA) ---
 class Enemy {
 private:
     SDL_Rect rect;
     int baseSpeed;
     int currentSpeed;
-    bool frozen = false;
-    bool slowed = false;
+    bool frozen = false;     // Czy wróg jest zamrożony
+    bool slowed = false;     // Czy wróg jest spowolniony (błoto)
     Uint32 freezeTimer = 0;
     Uint32 slowTimer = 0;
     SDL_Texture* texture = nullptr;
-    std::vector<SDL_Point> path; // Ścieżka, którą podąża wróg
-    int pathTimer; // Licznik do opóźniania przeliczania trasy
+    std::vector<SDL_Point> path; // Lista punktów ścieżki do gracza
+    int pathTimer; // Licznik klatek do sterowania częstotliwością obliczeń
 
-    // Algorytm szukania drogi (BFS) - pozwala wrogowi omijać ściany
+    // Algorytm BFS (Breadth-First Search) do znajdowania najkrótszej drogi.
+    // Pozwala wrogowi inteligentnie omijać ściany i gonić gracza.
     void findPath(int startX, int startY, int targetX, int targetY) {
         path.clear();
+        // Przeliczenie pikseli na współrzędne siatki (kolumny i wiersze)
         int sCol = startX / TILE_SIZE;
         int sRow = startY / TILE_SIZE;
         int tCol = targetX / TILE_SIZE;
         int tRow = targetY / TILE_SIZE;
 
-        if (sCol == tCol && sRow == tRow) return;
+        if (sCol == tCol && sRow == tRow) return; // Jeśli wróg jest na tym samym polu co gracz, nie szukaj
 
         std::queue<SDL_Point> q;
         q.push({ sCol, sRow });
 
-        std::map<int, SDL_Point> parentMap;
+        std::map<int, SDL_Point> parentMap; // Mapa rodziców do odtworzenia ścieżki
         bool visited[MAP_ROWS][MAP_COLS] = { false };
         visited[sRow][sCol] = true;
 
         bool found = false;
+        // Pętla algorytmu "zalewania" mapy
         while (!q.empty()) {
             SDL_Point curr = q.front(); q.pop();
             if (curr.x == tCol && curr.y == tRow) { found = true; break; }
 
+            // Sprawdzanie sąsiadów (dół, góra, prawo, lewo)
             int dx[] = { 0, 0, 1, -1 };
             int dy[] = { 1, -1, 0, 0 };
             for (int i = 0; i < 4; i++) {
                 int nx = curr.x + dx[i], ny = curr.y + dy[i];
-                // Wróg może chodzić po: 0 (zboże) i 2 (ściernisko)
+                // Wróg może chodzić tylko po polach 0 (zboże) i 2 (ściernisko), nie po 1 (ściana)
                 if (nx >= 0 && nx < MAP_COLS && ny >= 0 && ny < MAP_ROWS && (maze[ny][nx] == 0 || maze[ny][nx] == 2) && !visited[ny][nx]) {
                     visited[ny][nx] = true;
                     parentMap[ny * MAP_COLS + nx] = curr;
@@ -299,15 +332,15 @@ private:
             }
         }
 
-        // Odtwarzanie ścieżki
+        // Odtwarzanie ścieżki od końca (od gracza do wroga)
         if (found) {
             SDL_Point curr = { tCol, tRow };
             while (curr.x != sCol || curr.y != sRow) {
-                // +10 to offset, żeby wróg celował w środek kafelka
+                // Dodajemy offset +10, żeby wróg celował w środek kafelka, a nie w róg
                 path.push_back({ curr.x * TILE_SIZE + 10, curr.y * TILE_SIZE + 10 });
                 curr = parentMap[curr.y * MAP_COLS + curr.x];
             }
-            std::reverse(path.begin(), path.end());
+            std::reverse(path.begin(), path.end()); // Odwracamy ścieżkę, żeby była od wroga do gracza
         }
     }
 
@@ -316,12 +349,14 @@ public:
         rect = { x, y, size, size };
         baseSpeed = moveSpeed;
         currentSpeed = moveSpeed;
-        pathTimer = rand() % 30; // Losowy start, żeby wrogowie nie ruszali się identycznie
+        // Losowy start timera sprawia, że wrogowie nie ruszają się idealnie synchronicznie
+        pathTimer = rand() % 30;
     }
     void setPos(int x, int y) { rect.x = x; rect.y = y; path.clear(); }
     void setTexture(SDL_Texture* tex) { texture = tex; }
     SDL_Rect getRect() { return rect; }
 
+    // Funkcje aktywujące efekty na wrogu
     void freeze() {
         frozen = true;
         slowed = false;
@@ -336,26 +371,28 @@ public:
 
     void setSpeed(int s) { baseSpeed = s; currentSpeed = s; }
 
-    // Główna logika ruchu wroga
+    // Główna logika ruchu wroga (wywoływana w każdej klatce)
     void update(int playerX, int playerY) {
         Uint32 now = SDL_GetTicks();
+        // Sprawdzanie czy efekty minęły
         if (frozen && now > freezeTimer) frozen = false;
         if (slowed && now > slowTimer) slowed = false;
 
-        if (frozen) return; // Jak zamrożony, to stoi
+        if (frozen) return; // Jak zamrożony, to przerywamy funkcję (stoi w miejscu)
 
-        // Przelicz trasę co 30 klatek (optymalizacja)
+        // Przelicz trasę co 30 klatek (optymalizacja wydajności, żeby nie liczyć co klatkę)
         pathTimer++;
         if (pathTimer % 30 == 0) {
             findPath(rect.x, rect.y, playerX, playerY);
         }
 
-        // Logika spowolnienia (rusza się co drugą klatkę)
+        // Logika spowolnienia (błoto): Wróg rusza się tylko w parzystych klatkach
         bool shouldMove = true;
         if (slowed) {
             if (pathTimer % 2 != 0) shouldMove = false;
         }
 
+        // Wykonanie ruchu wzdłuż wyznaczonej ścieżki
         if (shouldMove && !path.empty()) {
             SDL_Point target = path[0];
             int speed = baseSpeed;
@@ -365,13 +402,14 @@ public:
             if (rect.y < target.y) rect.y += speed;
             else if (rect.y > target.y) rect.y -= speed;
 
-            // Jeśli dotarł do punktu ścieżki, usuń go i idź do następnego
+            // Jeśli wróg dotarł do punktu kontrolnego ścieżki, usuń go i idź do następnego
             if (abs(rect.x - target.x) < speed + 1 && abs(rect.y - target.y) < speed + 1) {
                 path.erase(path.begin());
             }
         }
     }
 
+    // Gettery czasu efektów (do wyświetlania w HUD)
     float getFreezeRemainingTime() {
         if (SDL_GetTicks() >= freezeTimer) return 0;
         return(freezeTimer - SDL_GetTicks()) / 1000.0f;
@@ -387,15 +425,17 @@ public:
             SDL_RenderCopy(renderer, texture, NULL, &rect);
         }
         else {
-            // Kolorowanie kwadratu w zależności od stanu (debug)
-            if (frozen) SDL_SetRenderDrawColor(renderer, 0, 255, 255, 255);
-            else if (slowed) SDL_SetRenderDrawColor(renderer, 139, 69, 19, 255);
-            else SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+            // Kolorowanie kwadratu w zależności od stanu (debug - gdy brak tekstury)
+            if (frozen) SDL_SetRenderDrawColor(renderer, 0, 255, 255, 255); // Błękitny
+            else if (slowed) SDL_SetRenderDrawColor(renderer, 139, 69, 19, 255); // Brązowy
+            else SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255); // Czerwony
             SDL_RenderFillRect(renderer, &rect);
         }
     }
     bool isFrozen() { return frozen; }
     bool isSlowed() { return slowed; }
+
+    // Resetuje wroga do stanu początkowego
     void resetStatus() {
         frozen = false;
         slowed = false;
@@ -406,7 +446,7 @@ public:
     }
 };
 
-// Funkcje zapisu i odczytu postępu (plik postep.txt)
+// Funkcja zapisu postępu do pliku tekstowego (0 = zablokowany, 1 = odblokowany)
 void zapiszPostep(bool odblokowane[], int rozmiar) {
     std::ofstream plik("postep.txt");
     if (plik.is_open()) {
@@ -417,6 +457,7 @@ void zapiszPostep(bool odblokowane[], int rozmiar) {
     }
 }
 
+// Funkcja odczytu postępu. Jeśli plik nie istnieje, tworzy domyślny stan.
 void wczytajPostep(bool odblokowane[], int rozmiar) {
     std::ifstream plik("postep.txt");
     if (plik.is_open()) {
@@ -426,13 +467,14 @@ void wczytajPostep(bool odblokowane[], int rozmiar) {
         plik.close();
     }
     else {
-        // Domyślnie odblokowany tylko 1 poziom
+        // Domyślnie odblokowany tylko 1 poziom, reszta zablokowana
         odblokowane[0] = true;
         for (int i = 1; i < rozmiar; i++) odblokowane[i] = false;
     }
 }
 
-// Funkcja ładująca obrazki z naprawą przezroczystości (usuwanie magenty)
+// Funkcja ładująca obrazki BMP i zamieniająca je na tekstury SDL.
+// Dodatkowo obsługuje "Color Key" - usuwa tło w kolorze Magenta (255, 0, 255).
 SDL_Texture* wczytajTeksture(SDL_Renderer* renderer, const char* path, bool colorKey = false) {
     SDL_Surface* tempSurface = SDL_LoadBMP(path);
     if (!tempSurface) {
@@ -441,16 +483,18 @@ SDL_Texture* wczytajTeksture(SDL_Renderer* renderer, const char* path, bool colo
     }
     if (colorKey) {
         // --- NAPRAWA PIKSELI TŁA (252,0,252 -> 255,0,255) ---
-        // Kod przechodzi przez każdy piksel obrazka i zamienia "brudny" różowy na idealną magentę,
-        // aby funkcja przezroczystości SDL zadziałała poprawnie.
+        // Niektóre programy graficzne zapisują Magentę z minimalnym błędem (np. 252 zamiast 255).
+        // Ten kod ręcznie iteruje po pikselach i naprawia te kolory, aby przezroczystość działała.
         SDL_LockSurface(tempSurface);
 
         int bpp = tempSurface->format->BytesPerPixel;
         for (int y = 0; y < tempSurface->h; y++) {
             for (int x = 0; x < tempSurface->w; x++) {
+                // Obliczanie adresu piksela w pamięci
                 Uint8* p = (Uint8*)tempSurface->pixels + y * tempSurface->pitch + x * bpp;
                 Uint32 pixelValue = 0;
 
+                // Odczyt wartości piksela (dla formatów 24-bit i 32-bit)
                 if (bpp == 3) {
                     if (SDL_BYTEORDER == SDL_BIG_ENDIAN)
                         pixelValue = p[0] << 16 | p[1] << 8 | p[2];
@@ -464,7 +508,7 @@ SDL_Texture* wczytajTeksture(SDL_Renderer* renderer, const char* path, bool colo
                 Uint8 r, g, b;
                 SDL_GetRGB(pixelValue, tempSurface->format, &r, &g, &b);
 
-                // Jeśli piksel ma kolor "prawie magenta", napraw go
+                // Jeśli piksel ma kolor "prawie magenta" (błędny), napraw go na "czystą magentę"
                 if ((r == 252 && g == 0 && b == 252) || (r == 225 && g == 0 && b == 255)) {
                     Uint32 newPixel = SDL_MapRGB(tempSurface->format, 255, 0, 255);
 
@@ -488,15 +532,17 @@ SDL_Texture* wczytajTeksture(SDL_Renderer* renderer, const char* path, bool colo
         }
         SDL_UnlockSurface(tempSurface);
 
-        // Ustawienie klucza koloru (wszystko co Magenta 255,0,255 staje się przezroczyste)
+        // Ustawienie klucza koloru: wszystko co jest Magentą (255,0,255) staje się przezroczyste
         SDL_SetColorKey(tempSurface, SDL_TRUE, SDL_MapRGB(tempSurface->format, 255, 0, 255));
     }
 
+    // Konwersja z powierzchni (CPU) na teksturę (GPU)
     SDL_Texture* tex = SDL_CreateTextureFromSurface(renderer, tempSurface);
-    SDL_FreeSurface(tempSurface);
+    SDL_FreeSurface(tempSurface); // Zwolnienie pamięci RAM
     return tex;
 }
 
+// --- FUNKCJA MAIN (Punkt startowy programu) ---
 int main(int argc, char* argv[]) {
     // --- INICJALIZACJA SDL ---
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
@@ -504,22 +550,25 @@ int main(int argc, char* argv[]) {
         return -1;
     }
 
+    // Tworzenie okna gry
     SDL_Window* window = SDL_CreateWindow("Traktorzysta", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, SCREEN_WIDTH, SCREEN_HEIGHT, 0);
-    SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC); // VSync dla płynności
+    // Tworzenie renderera (narzędzia do rysowania, z włączonym VSync dla płynności)
+    SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
 
     if (!window) {
         std::cout << "Window Error: " << SDL_GetError() << std::endl;
         return -1;
     }
 
+    // Inicjalizacja systemu czcionek
     if (TTF_Init() == -1) {
         printf("Błąd TTF_Init: %s\n", TTF_GetError());
         return 1;
     }
 
-    // --- ŁADOWANIE ZASOBÓW ---
-    TTF_Font* fontUI = TTF_OpenFont("assets\\couree.fon", 20); // Czcionka UI
-    TTF_Font* fontTitle = TTF_OpenFont("assets\\couree.fon", 72); // Czcionka Tytułowa
+    // --- ŁADOWANIE ZASOBÓW (Grafiki i Czcionki) ---
+    TTF_Font* fontUI = TTF_OpenFont("assets\\couree.fon", 20); // Czcionka mniejsza (interfejs)
+    TTF_Font* fontTitle = TTF_OpenFont("assets\\couree.fon", 72); // Czcionka duża (tytuły)
 
     if (!fontUI || !fontTitle) {
         printf("Błąd ładowania czcionki: %s\n", TTF_GetError());
@@ -531,17 +580,18 @@ int main(int argc, char* argv[]) {
     SDL_Texture* slowTexture = wczytajTeksture(renderer, "assets\\slow.bmp", true);
     SDL_Texture* freezeTexture = wczytajTeksture(renderer, "assets\\freezeF.bmp", true);
 
-    // Ładowanie grafik mapy
+    // Ładowanie grafik mapy (ściany, zboże, ściernisko)
     SDL_Texture* wallTexture = wczytajTeksture(renderer, "assets\\grass2.bmp");
     SDL_Texture* cropTexture = wczytajTeksture(renderer, "assets\\wheat2.bmp");
     SDL_Texture* stubbleTexture = wczytajTeksture(renderer, "assets\\wheatCut2.bmp");
 
-    // Ładowanie grafik Bossa
+    // Ładowanie grafik Bossa (siano, boss, korona)
     SDL_Texture* hayTexture = wczytajTeksture(renderer, "assets\\hay.bmp", true);
     SDL_Texture* bossTexture = wczytajTeksture(renderer, "assets\\soltys.bmp", true);
     SDL_Texture* crownTexture = wczytajTeksture(renderer, "assets\\crown.bmp", true);
 
     // --- KONFIGURACJA KOLORÓW TRAKTORA ---
+    // Tworzymy listę dostępnych traktorów do wyboru w menu
     std::vector<TractorOption> tractorOptions;
     tractorOptions.push_back({ "assets\\tractor_blue.bmp",   {0, 0, 255, 255},     nullptr });
     tractorOptions.push_back({ "assets\\tractor_cyan.bmp",   {0, 255, 255, 255},   nullptr });
@@ -552,35 +602,36 @@ int main(int argc, char* argv[]) {
     tractorOptions.push_back({ "assets\\tractor_red.bmp",    {255, 0, 0, 255},     nullptr }); // Domyślny
     tractorOptions.push_back({ "assets\\tractor_yellow.bmp", {255, 255, 0, 255},   nullptr });
 
+    // Wczytujemy tekstury dla każdego wariantu kolorystycznego
     for (auto& opt : tractorOptions) {
         opt.texture = wczytajTeksture(renderer, opt.filename.c_str(), true);
     }
-    int selectedColorIndex = 6; // Wybrany kolor (domyślnie czerwony)
+    int selectedColorIndex = 6; // Wybrany kolor (indeks 6 = czerwony)
 
-    // Ładowanie grafik wrogów (różne dla poziomów)
+    // Ładowanie grafik wrogów (różne zestawy dla różnych poziomów)
     SDL_Texture* enemyTextures[2][3];
-    // Level 1
+    // Zestaw dla Level 1
     enemyTextures[0][0] = wczytajTeksture(renderer, "assets\\babes11.bmp", true);
     enemyTextures[0][1] = wczytajTeksture(renderer, "assets\\babes12.bmp", true);
     enemyTextures[0][2] = wczytajTeksture(renderer, "assets\\babes13.bmp", true);
-    // Level 2
+    // Zestaw dla Level 2
     enemyTextures[1][0] = wczytajTeksture(renderer, "assets\\babes21.bmp", true);
     enemyTextures[1][1] = wczytajTeksture(renderer, "assets\\babes22.bmp", true);
     enemyTextures[1][2] = wczytajTeksture(renderer, "assets\\babes23.bmp", true);
 
-    // Grafiki menu
+    // Grafiki menu (przyciski poziomów)
     SDL_Texture* lvl1Tex = wczytajTeksture(renderer, "assets\\lvl1.bmp");
     SDL_Texture* lvl2Tex = wczytajTeksture(renderer, "assets\\lvl2.bmp");
     SDL_Texture* bossLvlTex = wczytajTeksture(renderer, "assets\\bosslvl.bmp");
 
     // Inicjalizacja obiektów gry
-    Player player(80, 80, 50, 10);
-    std::vector<Enemy> enemies;
-    std::vector<HayBale> hayBales;
-    std::vector<Crown> crowns;
-    Uint32 haySpawnTimer = 0;
+    Player player(80, 80, 50, 10); // Gracz na pozycji (80,80)
+    std::vector<Enemy> enemies;    // Lista przeciwników
+    std::vector<HayBale> hayBales; // Lista spadającego siana
+    std::vector<Crown> crowns;     // Lista koron
+    Uint32 haySpawnTimer = 0;      // Timer do generowania siana
 
-    // Pozycje boosterów na mapie
+    // Stałe pozycje boosterów na mapie (w rogach i na środku)
     SDL_Rect boosterPositions[4] = {
         {225, 85, 40, 40},
         {505, 225, 40, 40},
@@ -588,17 +639,17 @@ int main(int argc, char* argv[]) {
         {995, 85, 40, 40}
     };
     std::vector<Booster> boosters;
-    // Wstępne dodanie boosterów
+    // Wstępne dodanie boosterów do listy
     boosters.push_back({ {225, 85, 40, 40}, SPEED_UP, true });
     boosters.push_back({ {505, 225, 40, 40}, INVINCIBLE, true });
     boosters.push_back({ {85, 715, 40, 40}, SLOW_ENEMY, true });
     boosters.push_back({ {995, 85, 40, 40}, FREEZE, true });
 
-    // Wczytanie postępu gry
+    // Wczytanie postępu gry z pliku
     bool odblokowaneLevele[4];
     wczytajPostep(odblokowaneLevele, 4);
 
-    // Konfiguracja przycisków w menu (poziomy)
+    // Obliczanie pozycji przycisków w menu (poziomy)
     SDL_Rect przyciskiMenu[3];
     int sqSize = 220;
     int spacing = (SCREEN_WIDTH - (3 * sqSize)) / 4;
@@ -607,7 +658,7 @@ int main(int argc, char* argv[]) {
         przyciskiMenu[i] = { spacing + i * (sqSize + spacing), (SCREEN_HEIGHT - sqSize) / 2 + menuOffsetY, sqSize, sqSize };
     }
 
-    // Konfiguracja przycisków w menu (kolory traktora)
+    // Obliczanie pozycji przycisków w menu (kolory traktora - siatka 2x4)
     SDL_Rect colorButtons[8];
     int colorBtnSize = 40;
     int colorBtnGap = 10;
@@ -624,26 +675,26 @@ int main(int argc, char* argv[]) {
             colorBtnSize
         };
     }
-    SDL_Rect previewRect = { SCREEN_WIDTH / 2 - 260, gridStartY, 100, 100 }; // Podgląd traktora
+    SDL_Rect previewRect = { SCREEN_WIDTH / 2 - 260, gridStartY, 100, 100 }; // Miejsce na podgląd wybranego traktora
 
-    // Zmienne stanu gry
+    // Zmienne sterujące stanem gry
     int aktualnyLvl = 0;
-    bool running = true;
-    bool gameOver = false;
-    bool menuActive = true;
-    int aktualnePunkty = 0;
-    int pozostalePunkty = 0;
+    bool running = true;       // Czy gra działa
+    bool gameOver = false;     // Czy przegrałeś
+    bool menuActive = true;    // Czy jesteśmy w menu
+    int aktualnePunkty = 0;    // Punkty zdobyte
+    int pozostalePunkty = 0;   // Ile zboża/koron zostało do zebrania
 
     std::string playerName = "Gracz";
-    SDL_StartTextInput();
+    SDL_StartTextInput(); // Włącza obsługę wprowadzania tekstu
 
-    // Zmienne ekranów końcowych
+    // Zmienne dla ekranów końcowych (zwycięstwo/przejście poziomu)
     bool levelCompleteScreen = false;
     bool gameWonScreen = false;
     bool creditsActive = false;
-    float creditsScroll = 0;
+    float creditsScroll = 0; // Pozycja przewijania napisów końcowych
 
-    // Treść napisów końcowych
+    // Treść napisów końcowych (Credits)
     std::vector<std::string> endCredits = {
         "--- TRAKTORZYSTA ---", "The Game", "GRATULACJE!", "Udało ci się pokonać baby i sołtysa!", "", "Dzielny Traktorzysta : ", playerName, "",
         "--- POKONANI ---", "Szalone Baby: 6", "Zly Soltys: 1", "",
@@ -656,18 +707,20 @@ int main(int argc, char* argv[]) {
         "--- PAMIECI BLEDOW ---", "","Ku pamieci buga, przez ktorego","zadna biblioteka nie dzialala","Bo nasza kochana CEO,"," chciala biblioteki w githubie","",
         "--- KONIEC ---", "", "Dziekujemy za gre!", "", "Wcisnij ESC aby wrocic", "", "", "", "", "", "", "", "", "", "", "", "Specjalne podziekowania dla Google Gemini"
     };
-    for (int i = 0; i < 20; i++) endCredits.push_back(""); // Puste linie na koniec
+    for (int i = 0; i < 20; i++) endCredits.push_back(""); // Dodajemy puste linie na koniec, żeby tekst wyjechał poza ekran
 
     SDL_Event e;
 
     // --- GŁÓWNA PĘTLA GRY ---
     while (running) {
 
-        // Obsługa zdarzeń (klawiatura, mysz)
+        // Obsługa zdarzeń (klawiatura, mysz, zamykanie okna)
         while (SDL_PollEvent(&e)) {
-            if (e.type == SDL_QUIT) running = false;
+            if (e.type == SDL_QUIT) running = false; // Zamknięcie okna "X"
 
             if (menuActive) {
+                // --- LOGIKA MENU ---
+
                 // Wpisywanie imienia
                 if (e.type == SDL_TEXTINPUT) {
                     if (playerName.length() < 15) {
@@ -684,30 +737,31 @@ int main(int argc, char* argv[]) {
                 if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) {
                     SDL_Point mousePos = { e.button.x, e.button.y };
 
-                    // Wybór koloru
+                    // Sprawdzenie czy kliknięto w wybór koloru
                     for (int i = 0; i < 8; i++) {
                         if (SDL_PointInRect(&mousePos, &colorButtons[i])) {
                             selectedColorIndex = i;
                         }
                     }
 
-                    // Wybór poziomu (Start gry)
+                    // Sprawdzenie czy kliknięto w przycisk poziomu (START GRY)
                     for (int i = 0; i < 3; i++) {
                         if (SDL_PointInRect(&mousePos, &przyciskiMenu[i]) && i < LICZBA_LEVELI && odblokowaneLevele[i]) {
                             aktualnyLvl = i;
-                            menuActive = false;
+                            menuActive = false; // Wyjście z menu, start gry
 
                             player.setTexture(tractorOptions[selectedColorIndex].texture);
 
-                            // Reset stanu gry przed startem
+                            // Reset stanu gry przed startem nowego poziomu
                             boosters.clear();
                             enemies.clear();
                             hayBales.clear();
                             crowns.clear();
 
+                            // Konfiguracja poziomu w zależności od numeru
                             if (aktualnyLvl == 2) {
                                 // --- KONFIGURACJA LEVELU Z BOSSEM ---
-                                // Czyścimy mapę ze zboża
+                                // 1. Czyścimy mapę (usuwamy stare dane)
                                 for (int r = 1; r < MAP_ROWS - 1; r++) {
                                     for (int c = 1; c < MAP_COLS - 1; c++) {
                                         // Puste przebiegi
@@ -715,26 +769,26 @@ int main(int argc, char* argv[]) {
                                 }
                                 ladujPoziom(aktualnyLvl, boosters);
 
-                                // Ustawiamy środek mapy na ściernisko
+                                // 2. Ustawiamy środek mapy na ściernisko (2), żeby była pusta arena
                                 for (int r = 1; r < MAP_ROWS - 1; r++) {
                                     for (int c = 1; c < MAP_COLS - 1; c++) {
                                         if (maze[r][c] != 1) maze[r][c] = 2;
                                     }
                                 }
 
-                                // Tworzenie bossa
+                                // 3. Tworzenie bossa
                                 Enemy boss(SCREEN_WIDTH / 2 - 30, SCREEN_HEIGHT / 2 - 30, 60, 1);
                                 boss.setTexture(bossTexture);
                                 boss.setSpeed(1);
                                 enemies.push_back(boss);
 
-                                // Generowanie koron
+                                // 4. Generowanie koron w losowych miejscach
                                 int crownsToSpawn = 15;
                                 while (crownsToSpawn > 0) {
                                     int rCol = (rand() % (MAP_COLS - 2)) + 1;
                                     int rRow = (rand() % (MAP_ROWS - 2)) + 1;
 
-                                    if (maze[rRow][rCol] == 1) continue;
+                                    if (maze[rRow][rCol] == 1) continue; // Pomiń, jeśli wylosowano ścianę
 
                                     int cx = rCol * TILE_SIZE + 10;
                                     int cy = rRow * TILE_SIZE + 10;
@@ -755,11 +809,11 @@ int main(int argc, char* argv[]) {
                                         crownsToSpawn--;
                                     }
                                 }
-                                pozostalePunkty = 15;
+                                pozostalePunkty = 15; // Cel u Bossa: zebrać 15 koron
                             }
                             else {
                                 // --- KONFIGURACJA ZWYKŁEGO LEVELU ---
-                                // Losowanie boosterów
+                                // 1. Losowanie i ustawianie boosterów
                                 std::vector<BoosterType> types = { SPEED_UP, INVINCIBLE, SLOW_ENEMY, FREEZE };
                                 std::random_device rd;
                                 std::mt19937 g(rd());
@@ -769,7 +823,7 @@ int main(int argc, char* argv[]) {
                                     boosters.push_back({ boosterPositions[k], types[k], true });
                                 }
 
-                                // Generowanie 3 wrogów
+                                // 2. Generowanie 3 wrogów w rogach mapy
                                 int spawnX[] = { 990, 80, 990 };
                                 int spawnY[] = { 80, 710, 710 };
 
@@ -780,9 +834,10 @@ int main(int argc, char* argv[]) {
                                 }
 
                                 ladujPoziom(aktualnyLvl, boosters);
-                                pozostalePunkty = liczPunkty();
+                                pozostalePunkty = liczPunkty(); // Cel: skosić całe zboże
                             }
 
+                            // Wspólny reset gracza
                             aktualnePunkty = 0;
                             player.setPos(80, 80);
                             gameOver = false;
@@ -793,13 +848,13 @@ int main(int argc, char* argv[]) {
                 }
             }
             else {
-                // OBSŁUGA GRY (NIE MENU)
+                // --- OBSŁUGA GRY (NIE MENU) ---
 
-                // Ekran przejścia poziomu
+                // Ekran przejścia poziomu (Level Complete)
                 if (levelCompleteScreen) {
                     if (e.type == SDL_KEYDOWN) {
                         if (e.key.keysym.sym == SDLK_SPACE) {
-                            // PRZEJŚCIE DO NASTĘPNEGO POZIOMU
+                            // PRZEJŚCIE DO NASTĘPNEGO POZIOMU (RESET I KONFIGURACJA)
                             levelCompleteScreen = false;
                             aktualnyLvl++;
 
@@ -808,8 +863,9 @@ int main(int argc, char* argv[]) {
                             hayBales.clear();
                             crowns.clear();
 
-                            // Konfiguracja nowego poziomu (kod analogiczny do menu)
+                            // Konfiguracja nowego poziomu (kod analogiczny do tego w menu)
                             if (aktualnyLvl == 2) {
+                                // Boss Level Setup
                                 for (int r = 0; r < MAP_ROWS; r++) {
                                     for (int c = 0; c < MAP_COLS; c++) maze[r][c] = 0;
                                 }
@@ -848,6 +904,7 @@ int main(int argc, char* argv[]) {
                                 pozostalePunkty = 15;
                             }
                             else {
+                                // Normal Level Setup
                                 std::vector<BoosterType> types = { SPEED_UP, INVINCIBLE, SLOW_ENEMY, FREEZE };
                                 std::random_device rd;
                                 std::mt19937 g(rd());
@@ -875,11 +932,11 @@ int main(int argc, char* argv[]) {
                         }
                     }
                 }
-                // Ekran wygranej (po Bossie)
+                // Ekran wygranej całej gry (po Bossie)
                 else if (gameWonScreen) {
                     if (e.type == SDL_KEYDOWN) {
                         if (e.key.keysym.sym == SDLK_SPACE) {
-                            endCredits[6] = playerName;
+                            endCredits[6] = playerName; // Wstawiamy imię gracza do napisów
                             gameWonScreen = false;
                             creditsActive = true;
                             creditsScroll = SCREEN_HEIGHT;
@@ -899,7 +956,7 @@ int main(int argc, char* argv[]) {
                         SDL_StartTextInput();
                     }
                 }
-                // Rozgrywka
+                // Normalna rozgrywka (ruch gracza)
                 else {
                     if (!gameOver && !levelCompleteScreen && !gameWonScreen) player.handleInput(e);
 
@@ -911,12 +968,13 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        // --- LOGIKA GRY I RYSOWANIE ---
+        // --- RYSOWANIE GRAFIKI (RENDEROWANIE) ---
+        // Czyszczenie ekranu na czarno
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
 
         if (menuActive) {
-            // Rysowanie tła menu
+            // Rysowanie tła menu (kafelki trawy)
             if (wallTexture) {
                 for (int y = 0; y < SCREEN_HEIGHT; y += 70) {
                     for (int x = 0; x < SCREEN_WIDTH; x += 70) {
@@ -925,7 +983,7 @@ int main(int argc, char* argv[]) {
                     }
                 }
             }
-            // Rysowanie dużego traktora w tle
+            // Rysowanie dużego traktora w tle menu
             if (tractorOptions.size() > 6 && tractorOptions[6].texture) {
                 SDL_SetTextureColorMod(tractorOptions[6].texture, 255, 255, 255);
                 int bigSize = 800;
@@ -937,14 +995,14 @@ int main(int argc, char* argv[]) {
                 SDL_RenderCopy(renderer, tractorOptions[6].texture, NULL, &bigTractorRect);
             }
 
-            // Przyciemnienie tła
+            // Przyciemnienie tła (półprzezroczysty czarny prostokąt)
             SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
             SDL_SetRenderDrawColor(renderer, 0, 0, 0, 180);
             SDL_Rect fullscreen = { 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT };
             SDL_RenderFillRect(renderer, &fullscreen);
             SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
 
-            // Tytuł gry
+            // Rysowanie tytułu gry
             SDL_Color titleColor = { 255, 215, 0 };
             SDL_Surface* titleSurface = TTF_RenderText_Solid(fontTitle, "TRAKTORZYSTA", titleColor);
             if (titleSurface) {
@@ -955,7 +1013,7 @@ int main(int argc, char* argv[]) {
                 SDL_DestroyTexture(titleTexture);
             }
 
-            // Nagroda za przejście gry
+            // Nagroda za przejście gry (korona w menu)
             if (odblokowaneLevele[0] && odblokowaneLevele[1] && odblokowaneLevele[2] && odblokowaneLevele[3]) {
                 if (crownTexture) {
                     SDL_Rect awardRect = { 80, 150, 80, 80 };
@@ -968,12 +1026,13 @@ int main(int argc, char* argv[]) {
             SDL_Color textColor = { 255, 255, 255 };
             rysujTekstWycentrowany(renderer, fontUI, "Wpisz imie traktorzysty:", 180, textColor);
 
+            // Rysowanie pola wpisywania tekstu
             SDL_Rect inputRect = { (SCREEN_WIDTH - 300) / 2, 210, 300, 40 };
             SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
             SDL_RenderDrawRect(renderer, &inputRect);
             rysujTekstWycentrowany(renderer, fontUI, playerName + (SDL_GetTicks() % 1000 < 500 ? "|" : ""), 220, textColor);
 
-            // Podgląd wybranego traktora
+            // Podgląd wybranego traktora (lewa strona)
             rysujTekst(renderer, fontUI, "Wyglad:", previewRect.x, previewRect.y - 25, { 255, 255, 255 });
             SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
             SDL_RenderFillRect(renderer, &previewRect);
@@ -984,12 +1043,13 @@ int main(int argc, char* argv[]) {
                 SDL_RenderCopy(renderer, tractorOptions[selectedColorIndex].texture, NULL, &previewRect);
             }
 
-            // Siatka kolorów
+            // Siatka kolorów do wyboru (prawa strona)
             rysujTekst(renderer, fontUI, "Wybierz kolor:", gridStartX, gridStartY - 25, { 255, 255, 255 });
             for (int i = 0; i < 8; i++) {
                 SDL_SetRenderDrawColor(renderer, tractorOptions[i].colorRGB.r, tractorOptions[i].colorRGB.g, tractorOptions[i].colorRGB.b, 255);
                 SDL_RenderFillRect(renderer, &colorButtons[i]);
 
+                // Rysowanie ramki (biała dla wybranego, czarna dla reszty)
                 if (i == selectedColorIndex) {
                     SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
                     SDL_Rect border = colorButtons[i];
@@ -1003,7 +1063,7 @@ int main(int argc, char* argv[]) {
                 }
             }
 
-            // Przyciski poziomów
+            // Rysowanie przycisków poziomów
             for (int i = 0; i < 3; i++) {
                 SDL_Texture* currentLvlTex = nullptr;
                 if (i == 0) currentLvlTex = lvl1Tex;
@@ -1011,6 +1071,7 @@ int main(int argc, char* argv[]) {
                 else if (i == 2) currentLvlTex = bossLvlTex;
 
                 if (currentLvlTex) {
+                    // Przyciemnij przycisk, jeśli poziom jest zablokowany
                     if (odblokowaneLevele[i]) SDL_SetTextureColorMod(currentLvlTex, 255, 255, 255);
                     else SDL_SetTextureColorMod(currentLvlTex, 60, 60, 60);
                     SDL_RenderCopy(renderer, currentLvlTex, NULL, &przyciskiMenu[i]);
@@ -1024,11 +1085,12 @@ int main(int argc, char* argv[]) {
             }
         }
         else {
-            // --- TRYB GRY ---
+            // --- TRYB GRY (ROZGRYWKA) ---
             if (!gameOver && !levelCompleteScreen && !gameWonScreen && !creditsActive) {
 
-                // Zbieranie punktów (Korony u Bossa / Zboże normalnie)
+                // Sprawdzanie zbierania punktów
                 if (aktualnyLvl == 2) {
+                    // Logika Bossa: Zbieranie koron
                     SDL_Rect pRect = player.getRect();
                     for (auto& crown : crowns) {
                         if (crown.active && SDL_HasIntersection(&pRect, &crown.rect)) {
@@ -1039,6 +1101,7 @@ int main(int argc, char* argv[]) {
                     }
                 }
                 else {
+                    // Logika Zwykła: Koszenie zboża
                     int pCol = (player.getX() + 25) / TILE_SIZE;
                     int pRow = (player.getY() + 25) / TILE_SIZE;
                     if (maze[pRow][pCol] == 0) {
@@ -1048,8 +1111,9 @@ int main(int argc, char* argv[]) {
                     }
                 }
 
-                // Sprawdzenie zwycięstwa
+                // Sprawdzenie warunku zwycięstwa (czy zebrano wszystko)
                 if (pozostalePunkty <= 0) {
+                    // Odblokowanie kolejnego poziomu i zapis postępu
                     if (aktualnyLvl + 1 < LICZBA_LEVELI) {
                         if (!odblokowaneLevele[aktualnyLvl + 1]) {
                             odblokowaneLevele[aktualnyLvl + 1] = true;
@@ -1058,22 +1122,25 @@ int main(int argc, char* argv[]) {
                     }
                     else if (aktualnyLvl == 2) {
                         if (!odblokowaneLevele[3]) {
-                            odblokowaneLevele[3] = true;
+                            odblokowaneLevele[3] = true; // Zaznaczamy ukończenie całej gry
                             zapiszPostep(odblokowaneLevele, 4);
                         }
                     }
 
+                    // Włączanie odpowiedniego ekranu końcowego
                     if (aktualnyLvl == 2) gameWonScreen = true;
                     else levelCompleteScreen = true;
                 }
 
+                // Aktualizacja gracza (ruch, boostery)
                 player.update();
 
-                // Mechanika Bossa (spadające siano)
+                // --- MECHANIKA BOSSA ---
                 if (aktualnyLvl == 2) {
-                    int currentSpawnRate = 1200;
+                    int currentSpawnRate = 1200; // Czas między spadającymi belami
                     int bossSpeed = 1;
 
+                    // Zwiększanie trudności im mniej punktów zostało
                     if (!enemies.empty()) {
                         if (pozostalePunkty <= 5) { currentSpawnRate = 600; bossSpeed = 2; }
                         else if (pozostalePunkty <= 10) { currentSpawnRate = 900; bossSpeed = 1; }
@@ -1081,6 +1148,7 @@ int main(int argc, char* argv[]) {
                         enemies[0].setSpeed(bossSpeed);
                     }
 
+                    // Generowanie spadającego siana
                     if (SDL_GetTicks() > haySpawnTimer) {
                         HayBale bale;
                         bale.rect = { (rand() % (MAP_COLS - 2) + 1) * TILE_SIZE, -50, 50, 50 };
@@ -1091,42 +1159,45 @@ int main(int argc, char* argv[]) {
                         haySpawnTimer = SDL_GetTicks() + currentSpawnRate;
                     }
 
+                    // Obsługa ruchu siana i kolizji z graczem
                     for (size_t i = 0; i < hayBales.size(); ) {
                         hayBales[i].y += hayBales[i].speed;
                         hayBales[i].rect.y = (int)hayBales[i].y;
 
                         SDL_Rect pRect = player.getRect();
-                        SDL_Rect hitBox = { pRect.x + 15, pRect.y + 15, pRect.w - 30, pRect.h - 30 };
+                        SDL_Rect hitBox = { pRect.x + 15, pRect.y + 15, pRect.w - 30, pRect.h - 30 }; // Mniejszy hitbox
 
                         if (SDL_HasIntersection(&hitBox, &hayBales[i].rect) && !player.isInvincible()) {
                             gameOver = true;
                         }
 
+                        // Usuwanie siana, które wyleciało za ekran
                         if (hayBales[i].rect.y > SCREEN_HEIGHT) hayBales.erase(hayBales.begin() + i);
                         else i++;
                     }
                 }
 
-                // Ruch wrogów
+                // Ruch wrogów (AI)
                 for (auto& enemy : enemies) {
                     enemy.update(player.getX(), player.getY());
                 }
 
                 SDL_Rect pRect = player.getRect();
 
-                // Obsługa boosterów
+                // Obsługa boosterów (tylko na zwykłych poziomach)
                 if (aktualnyLvl != 2) {
                     for (auto& b : boosters) {
                         if (b.active && SDL_HasIntersection(&pRect, &b.rect)) {
+                            // Aktywacja odpowiedniego efektu
                             if (b.type == FREEZE) { for (auto& enemy : enemies) enemy.freeze(); }
                             else if (b.type == SLOW_ENEMY) { for (auto& enemy : enemies) enemy.slowDown(); }
                             else player.applyBooster(b.type);
-                            b.active = false;
+                            b.active = false; // Usunięcie boostera z mapy
                         }
                     }
                 }
 
-                // Kolizja z wrogiem
+                // Kolizja gracza z wrogiem (Game Over)
                 for (auto& enemy : enemies) {
                     SDL_Rect eRect = enemy.getRect();
                     SDL_Rect hitBox = { pRect.x + 10, pRect.y + 10, pRect.w - 20, pRect.h - 20 };
@@ -1136,6 +1207,7 @@ int main(int argc, char* argv[]) {
                 }
             }
 
+            // Rysowanie tła gry (zielone)
             SDL_SetRenderDrawColor(renderer, 34, 139, 34, 255);
             SDL_RenderClear(renderer);
 
@@ -1145,14 +1217,14 @@ int main(int argc, char* argv[]) {
                     SDL_Rect tileRect = { c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, TILE_SIZE };
                     if (maze[r][c] == 1) {
                         if (wallTexture) SDL_RenderCopy(renderer, wallTexture, NULL, &tileRect);
-                        else {
+                        else { // Zapasowy kolor ściany
                             SDL_SetRenderDrawColor(renderer, 210, 180, 140, 255);
                             SDL_RenderFillRect(renderer, &tileRect);
                         }
                     }
                     else if (maze[r][c] == 0) {
                         if (cropTexture) SDL_RenderCopy(renderer, cropTexture, NULL, &tileRect);
-                        else {
+                        else { // Zapasowa kropka (zboże)
                             SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
                             SDL_Rect dot = { c * TILE_SIZE + 32, r * TILE_SIZE + 32, 6, 6 };
                             SDL_RenderFillRect(renderer, &dot);
@@ -1160,7 +1232,7 @@ int main(int argc, char* argv[]) {
                     }
                     else if (maze[r][c] == 2) {
                         if (stubbleTexture) SDL_RenderCopy(renderer, stubbleTexture, NULL, &tileRect);
-                        else {
+                        else { // Zapasowy kolor ziemi
                             SDL_SetRenderDrawColor(renderer, 139, 69, 19, 255);
                             SDL_RenderFillRect(renderer, &tileRect);
                         }
@@ -1168,11 +1240,14 @@ int main(int argc, char* argv[]) {
                 }
             }
 
+            // Rysowanie elementów interaktywnych
             if (aktualnyLvl == 2) {
+                // Boss level: Korony i Siano
                 for (auto& c : crowns) if (c.active) SDL_RenderCopy(renderer, crownTexture, NULL, &c.rect);
                 for (auto& h : hayBales) SDL_RenderCopy(renderer, hayTexture, NULL, &h.rect);
             }
             else {
+                // Zwykły level: Boostery
                 for (auto& b : boosters) {
                     if (b.active) {
                         if (b.type == INVINCIBLE && shieldTexture) SDL_RenderCopy(renderer, shieldTexture, NULL, &b.rect);
@@ -1187,12 +1262,14 @@ int main(int argc, char* argv[]) {
                 }
             }
 
+            // Rysowanie postaci
             player.draw(renderer);
             for (auto& enemy : enemies) {
                 enemy.draw(renderer);
             }
 
-            // --- HUD (INTERFEJS) ---
+            // --- HUD (INTERFEJS UŻYTKOWNIKA) ---
+            // Wyświetlanie imienia i punktów
             std::string celTxt = (aktualnyLvl == 2) ? " | KORONY: " : " | PKT: ";
             std::string celVal = (aktualnyLvl == 2) ? std::to_string(pozostalePunkty) : std::to_string(aktualnePunkty);
             std::string hudTop = playerName + celTxt + celVal;
@@ -1222,7 +1299,7 @@ int main(int argc, char* argv[]) {
 
             rysujTekst(renderer, fontUI, instrText, instrX, 10, { 255, 255, 255 });
 
-            // Wyświetlanie aktywnego boostera
+            // Wyświetlanie aktywnego boostera na dole ekranu
             std::string boosterText = "";
             SDL_Texture* activeIcon = nullptr;
             float timeRem = 0;
@@ -1258,6 +1335,7 @@ int main(int argc, char* argv[]) {
                 rysujTekst(renderer, fontUI, ss.str(), 70, SCREEN_HEIGHT - 50, { 255, 255, 0 });
             }
 
+            // Ekran Game Over (Czerwony)
             if (gameOver) {
                 SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
                 SDL_SetRenderDrawColor(renderer, 255, 0, 0, 150);
@@ -1269,7 +1347,7 @@ int main(int argc, char* argv[]) {
                 rysujTekstWycentrowany(renderer, fontUI, "Nacisnij ESC aby wrocic do menu", SCREEN_HEIGHT / 2 + 20, { 255, 255, 255 });
             }
 
-            // Ekran ukończenia poziomu
+            // Ekran ukończenia poziomu (Przejściowy)
             if (levelCompleteScreen) {
                 SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
                 SDL_SetRenderDrawColor(renderer, 0, 0, 0, 200);
@@ -1280,12 +1358,12 @@ int main(int argc, char* argv[]) {
                 rysujTekstWycentrowany(renderer, fontTitle, "POZIOM UKONCZONY!", 200, { 0, 255, 0 });
                 rysujTekstWycentrowany(renderer, fontUI, "Brawo! Odblokowales kolejny etap.", 300, { 255, 255, 255 });
 
-                if (SDL_GetTicks() % 1000 < 600) {
+                if (SDL_GetTicks() % 1000 < 600) { // Efekt migania tekstu
                     rysujTekstWycentrowany(renderer, fontUI, "SPACJA - Jedziesz dalej", 500, { 255, 255, 0 });
                 }
                 rysujTekstWycentrowany(renderer, fontUI, "ESC - Powrot do Menu", 550, { 200, 200, 200 });
             }
-            // Ekran zwycięstwa
+            // Ekran zwycięstwa (Finał)
             else if (gameWonScreen) {
                 SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
                 SDL_SetRenderDrawColor(renderer, 0, 0, 0, 200);
@@ -1307,28 +1385,31 @@ int main(int argc, char* argv[]) {
                     SDL_RenderCopy(renderer, bossTexture, NULL, &r);
                 }
             }
-            // Napisy końcowe
+            // Ekran napisów końcowych (Credits)
             else if (creditsActive) {
                 SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
                 SDL_RenderClear(renderer);
 
-                creditsScroll -= 1.5;
+                creditsScroll -= 1.5; // Przesuwanie tekstu w górę
 
+                // Powrót do menu po zakończeniu napisów
                 if (creditsScroll < -((int)endCredits.size() * 50 + 400)) {
                     creditsActive = false;
                     menuActive = true;
                     SDL_StartTextInput();
                 }
 
+                // Rysowanie linijek tekstu
                 for (size_t i = 0; i < endCredits.size(); i++) {
                     float y = creditsScroll + i * 50;
-                    if (y > -50 && y < SCREEN_HEIGHT + 50) {
+                    if (y > -50 && y < SCREEN_HEIGHT + 50) { // Optymalizacja: rysuj tylko widoczne
                         SDL_Color kol = { 255, 255, 255 };
-                        if (endCredits[i].length() > 3 && endCredits[i].substr(0, 3) == "---") kol = { 255, 215, 0 };
+                        if (endCredits[i].length() > 3 && endCredits[i].substr(0, 3) == "---") kol = { 255, 215, 0 }; // Nagłówki na żółto
                         rysujTekstWycentrowany(renderer, fontUI, endCredits[i], (int)y, kol);
                     }
                 }
 
+                // Ozdobne obrazki po bokach
                 SDL_Rect leftImg = { 50, SCREEN_HEIGHT / 2 - 75, 150, 150 };
                 SDL_Rect rightImg = { SCREEN_WIDTH - 200, SCREEN_HEIGHT / 2 - 75, 150, 150 };
 
@@ -1336,11 +1417,12 @@ int main(int argc, char* argv[]) {
                 if (crownTexture) SDL_RenderCopy(renderer, crownTexture, NULL, &rightImg);
             }
         }
-        SDL_RenderPresent(renderer);
-        SDL_Delay(16);
+        SDL_RenderPresent(renderer); // Wyświetlenie narysowanej klatki
+        SDL_Delay(16); // Opóźnienie dla stabilnych ~60 FPS
     }
 
     // --- SPRZĄTANIE PAMIĘCI (ZAMYKANIE PROGRAMU) ---
+    // Należy zwolnić wszystkie zasoby, aby uniknąć wycieków pamięci
     SDL_DestroyTexture(shieldTexture);
     SDL_DestroyTexture(speedTexture);
     SDL_DestroyTexture(slowTexture);
