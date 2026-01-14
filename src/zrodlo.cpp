@@ -14,7 +14,6 @@
 
 const int SCREEN_WIDTH = 1120; //Szerokosc okna (16 * 70)
 const int SCREEN_HEIGHT = 840; //Wysokosc okna (12 * 70)
-//Klasa Gracza
 const int TILE_SIZE = 70; // (Powiększone z 50)
 const int MAP_ROWS = 12;
 const int MAP_COLS = 16;
