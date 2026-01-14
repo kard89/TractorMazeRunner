@@ -418,23 +418,7 @@ public:
     }
 };
 
-int wczytajRekord() {
-    int rekord = 0;
-    std::ifstream plik("rekord.txt");
-    if (plik.is_open()) {
-        plik >> rekord;
-        plik.close();
-    }
-    return rekord;
-}
 
-void zapiszRekord(int punkty) {
-    std::ofstream plik("rekord.txt");
-    if (plik.is_open()) {
-        plik << punkty;
-        plik.close();
-    }
-}
 void zapiszPostep(bool odblokowane[], int rozmiar) {
     std::ofstream plik("postep.txt");
     if (plik.is_open()) {
@@ -696,7 +680,6 @@ int main(int argc, char* argv[]) {
     bool running = true;
     bool gameOver = false;
     bool menuActive = true;
-    int rekordZycia = wczytajRekord();
     int aktualnePunkty = 0;
     int pozostalePunkty = 0;
 
@@ -836,7 +819,8 @@ int main(int argc, char* argv[]) {
                                 pozostalePunkty = 15; // Celem są korony
                             }
                             else {
-                                // --- STANDARDOWE LEVELE ---
+                                // Setup Zwykły (skopiuj ze swojego starego kodu)
+                                // --- NOWY KOD: GENEROWANIE BOOSTERÓW DLA NOWEGO POZIOMU ---
                                 std::vector<BoosterType> types = { SPEED_UP, INVINCIBLE, SLOW_ENEMY, FREEZE };
                                 // Tasowanie typów
                                 std::random_device rd;
@@ -848,9 +832,7 @@ int main(int argc, char* argv[]) {
                                     boosters.push_back({ boosterPositions[k], types[k], true });
                                 }
 
-                                // 2. TWORZENIE 3 WROGÓW
-                                // Pozycje startowe wrogów (rogi mapy): Prawa-Góra, Lewy-Dół, Prawy-Dół
-                                // (Lewa-Góra jest zajęta przez Gracza)
+                                // --- NOWY KOD: GENEROWANIE 3 WROGÓW ---
                                 int spawnX[] = { 990, 80, 990 };
                                 int spawnY[] = { 80, 710, 710 };
 
@@ -861,8 +843,8 @@ int main(int argc, char* argv[]) {
                                     enemies.push_back(newEnemy);
                                 }
 
-                                // Reszta inicjalizacji
                                 ladujPoziom(aktualnyLvl, boosters);
+                                // ... generowanie wrogów i boosterów ...
                                 pozostalePunkty = liczPunkty();
                             }
 
@@ -885,41 +867,52 @@ int main(int argc, char* argv[]) {
                             levelCompleteScreen = false;
                             aktualnyLvl++;
 
-                            // --- TU WKLEJ CAŁY SWÓJ KOD RESETOWANIA POZIOMU ---
-                            // (Ten fragment, który wcześniej miałeś w if(pozostalePunkty <= 0))
-                            // Skrótowo (musisz tu mieć to co w oryginale):
-                            boosters.clear(); enemies.clear(); hayBales.clear(); crowns.clear();
+                            // 1. OBOWIĄZKOWE CZYSZCZENIE WEKTORÓW (To naprawia brak generowania)
+                            boosters.clear();
+                            enemies.clear();
+                            hayBales.clear();
+                            crowns.clear();
 
+                            // 2. KONFIGURACJA POZIOMU
                             if (aktualnyLvl == 2) {
-                                // Setup Bossa (skopiuj ze swojego starego kodu logikę ładowania Bossa)
-                                for (int r = 1; r < 11; r++) for (int c = 1; c < 15; c++) maze[r][c] = 0; // reset mapy
-                                ladujPoziom(aktualnyLvl, boosters);
-                                for (int r = 1; r < 11; r++) for (int c = 1; c < 15; c++) if (maze[r][c] != 1) maze[r][c] = 2;
+                                // --- SETUP DLA BOSSA (LEVEL 3) ---
+                                // Reset mapy w pamięci na 0 (puste)
+                                for (int r = 0; r < MAP_ROWS; r++) {
+                                    for (int c = 0; c < MAP_COLS; c++) {
+                                        maze[r][c] = 0;
+                                    }
+                                }
 
+                                ladujPoziom(aktualnyLvl, boosters); // Ładuje ściany
+
+                                // Nadpisanie pustych pól na "skoszone" (tło 2)
+                                for (int r = 1; r < MAP_ROWS - 1; r++) {
+                                    for (int c = 1; c < MAP_COLS - 1; c++) {
+                                        if (maze[r][c] != 1) maze[r][c] = 2;
+                                    }
+                                }
+
+                                // Tworzenie Bossa
                                 Enemy boss(SCREEN_WIDTH / 2 - 30, SCREEN_HEIGHT / 2 - 30, 60, 1);
-                                boss.setTexture(bossTexture); boss.setSpeed(1); enemies.push_back(boss);
+                                boss.setTexture(bossTexture);
+                                boss.setSpeed(1);
+                                enemies.push_back(boss);
 
-                                // --- NAPRAWA: GENEROWANIE KORON PRZY PRZEJŚCIU Z POZIOMU 2 ---
+                                // Generowanie koron (Skopiowane z Twojego kodu)
                                 int crownsToSpawn = 15;
                                 while (crownsToSpawn > 0) {
-                                    // 1. Losujemy współrzędne w siatce mapy
                                     int rCol = (rand() % (MAP_COLS - 2)) + 1;
                                     int rRow = (rand() % (MAP_ROWS - 2)) + 1;
 
-                                    // 2. SPRAWDZENIE: Czy w tym miejscu jest ściana?
                                     if (maze[rRow][rCol] == 1) continue;
 
-                                    // 3. Przeliczenie na piksele
                                     int cx = rCol * TILE_SIZE + 10;
                                     int cy = rRow * TILE_SIZE + 10;
-
                                     SDL_Rect tempRect = { cx, cy, 50, 50 };
                                     SDL_Rect bossRect = boss.getRect();
 
-                                    // 4. Sprawdzenie kolizji
                                     bool collision = false;
                                     if (SDL_HasIntersection(&tempRect, &bossRect)) collision = true;
-
                                     for (const auto& existingCrown : crowns) {
                                         if (SDL_HasIntersection(&tempRect, &existingCrown.rect)) {
                                             collision = true;
@@ -935,15 +928,40 @@ int main(int argc, char* argv[]) {
                                 pozostalePunkty = 15;
                             }
                             else {
-                                // Setup Zwykły (skopiuj ze swojego starego kodu)
+                                // --- SETUP DLA ZWYKŁEGO POZIOMU (NP. LEVEL 2) ---
+
+                                // A. Generowanie Boosterów
+                                std::vector<BoosterType> types = { SPEED_UP, INVINCIBLE, SLOW_ENEMY, FREEZE };
+                                std::random_device rd;
+                                std::mt19937 g(rd());
+                                std::shuffle(types.begin(), types.end(), g);
+
+                                for (int k = 0; k < 4; k++) {
+                                    boosters.push_back({ boosterPositions[k], types[k], true });
+                                }
+
+                                // B. Generowanie 3 Wrogów
+                                int spawnX[] = { 990, 80, 990 };
+                                int spawnY[] = { 80, 710, 710 };
+
+                                for (int k = 0; k < 3; k++) {
+                                    Enemy newEnemy(spawnX[k], spawnY[k], 50, 1);
+                                    // Upewniamy się, że tekstura istnieje dla tego levelu
+                                    if (enemyTextures[aktualnyLvl][k]) {
+                                        newEnemy.setTexture(enemyTextures[aktualnyLvl][k]);
+                                    }
+                                    enemies.push_back(newEnemy);
+                                }
+
+                                // C. Ładowanie mapy i punktów
                                 ladujPoziom(aktualnyLvl, boosters);
-                                // ... generowanie wrogów i boosterów ...
                                 pozostalePunkty = liczPunkty();
                             }
+
+                            // 3. WSPÓLNY RESET GRACZA
                             aktualnePunkty = 0;
                             player.setPos(80, 80);
                             player.resetBoosters();
-                            // ---------------------------------------------------
                         }
                         else if (e.key.keysym.sym == SDLK_ESCAPE) {
                             levelCompleteScreen = false;
@@ -979,7 +997,9 @@ int main(int argc, char* argv[]) {
                 }
                 // D. NORMALNA ROZGRYWKA
                 else {
-                    if (!gameOver) player.handleInput(e);
+                    // ZMIANA: Blokada ruchu gracza, jeśli wyświetlamy ekrany końcowe
+                    if (!gameOver && !levelCompleteScreen && !gameWonScreen) player.handleInput(e);
+
                     if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE) {
                         menuActive = true;
                         SDL_StartTextInput();
@@ -1144,7 +1164,7 @@ int main(int argc, char* argv[]) {
             }
         }
         else {
-            if (!gameOver) {
+            if (!gameOver && !levelCompleteScreen && !gameWonScreen) {
 
                 // LOGIKA PUNKTÓW DLA BOSSA
                 if (aktualnyLvl == 2) {
@@ -1286,7 +1306,7 @@ int main(int argc, char* argv[]) {
                     }
                 }
 
-                // 3. KOLIZJA I ZAPIS REKORDU
+                // 3. KOLIZJA 
                 // Sprawdzamy kolizję z KAŻDYM wrogiem
                 for (auto& enemy : enemies) {
                     SDL_Rect eRect = enemy.getRect();
@@ -1298,10 +1318,6 @@ int main(int argc, char* argv[]) {
 
                     if (SDL_HasIntersection(&hitBox, &eRect) && !player.isInvincible()) {
                         gameOver = true;
-                        if (aktualnePunkty > rekordZycia) {
-                            rekordZycia = aktualnePunkty;
-                            zapiszRekord(rekordZycia);
-                        }
                     }
                 }
             }
@@ -1372,7 +1388,7 @@ int main(int argc, char* argv[]) {
             // 1. Nazwa i Punkty (Góra-Lewo)
             std::string celTxt = (aktualnyLvl == 2) ? " | KORONY: " : " | PKT: ";
             std::string celVal = (aktualnyLvl == 2) ? std::to_string(pozostalePunkty) : std::to_string(aktualnePunkty);
-            std::string hudTop = playerName + celTxt + celVal + " | REKORD: " + std::to_string(rekordZycia);
+            std::string hudTop = playerName + celTxt + celVal;
 
             SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
             SDL_SetRenderDrawColor(renderer, 0, 0, 0, 150);
